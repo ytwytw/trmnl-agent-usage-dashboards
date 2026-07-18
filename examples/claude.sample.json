@@ -1,0 +1,173 @@
+{
+  "ok": true,
+  "kind": "claude",
+  "title": "Claude Code max Usage",
+  "local_date": "2026-07-06",
+  "local_time": "14:30",
+  "local_datetime": "2026-07-06 14:30",
+  "refresh": "15m",
+  "cost_basis": "Token Cost*",
+  "source": "ccusage + Claude OAuth usage + local stats",
+  "errors": [],
+  "warnings": [],
+  "plan": "max",
+  "limits": {
+    "primary": {
+      "label": "Session",
+      "used": "38%",
+      "used_percent": 38,
+      "window": "5h",
+      "reset": "17:05",
+      "reset_full": "2026-07-06 17:05"
+    },
+    "weekly": {
+      "label": "Weekly all",
+      "used": "61%",
+      "used_percent": 61,
+      "window": "7d",
+      "reset": "Today 17:00",
+      "reset_full": "2026-07-06 17:00"
+    },
+    "scoped": {
+      "label": "Fable",
+      "used": "64%",
+      "used_percent": 64,
+      "window": "7d",
+      "reset": "Today 17:00",
+      "reset_full": "2026-07-06 17:00"
+    }
+  },
+  "statusline": {
+    "captured_age": "live",
+    "source": "Claude Code OAuth usage"
+  },
+  "auth": { "usage": "live" },
+  "activity_scope": "Local activity",
+  "block": {
+    "active": true,
+    "started": "12:05",
+    "updated": "14:28",
+    "reset": "17:05",
+    "remaining": "155",
+    "burn_tokens_min": "9.2K",
+    "burn_cost_hr": "$1.84",
+    "projected_tokens": "2.76M",
+    "projected_cost": "$9.20",
+    "models": "claude-opus-4-8"
+  },
+  "usage": {
+    "five_hour": {
+      "label": "Active block",
+      "total": "1.32M",
+      "total_raw": 1320000,
+      "input": "310K",
+      "output": "84.0K",
+      "reasoning": "0",
+      "cache_read": "880K",
+      "cache_write": "46.0K",
+      "cache": "926K",
+      "cache_hit": "75%",
+      "cost": "$4.12",
+      "sessions": "16"
+    },
+    "today": {
+      "label": "Today",
+      "total": "2.90M",
+      "total_raw": 2900000,
+      "input": "650K",
+      "output": "180K",
+      "reasoning": "0",
+      "cache_read": "1.90M",
+      "cache_write": "170K",
+      "cache": "2.07M",
+      "cache_hit": "76%",
+      "cost": "$11.20",
+      "sessions": "9"
+    },
+    "yesterday": {
+      "label": "Yesterday",
+      "total": "1.80M",
+      "total_raw": 1800000,
+      "input": "390K",
+      "output": "120K",
+      "reasoning": "0",
+      "cache_read": "1.20M",
+      "cache_write": "90.0K",
+      "cache": "1.29M",
+      "cache_hit": "77%",
+      "cost": "$7.45"
+    },
+    "week": {
+      "label": "Last 7d",
+      "total": "7.60M",
+      "total_raw": 7600000,
+      "input": "1.60M",
+      "output": "520K",
+      "reasoning": "0",
+      "cache_read": "5.00M",
+      "cache_write": "480K",
+      "cache": "5.48M",
+      "cache_hit": "77%",
+      "cost": "$31.00"
+    },
+    "month": {
+      "label": "This month",
+      "total": "21.4M",
+      "total_raw": 21400000,
+      "input": "4.20M",
+      "output": "1.70M",
+      "reasoning": "0",
+      "cache_read": "14.2M",
+      "cache_write": "1.30M",
+      "cache": "15.5M",
+      "cache_hit": "79%",
+      "cost": "$92.00"
+    },
+    "all": {
+      "label": "All time",
+      "total": "86.0M",
+      "total_raw": 86000000,
+      "input": "18.2M",
+      "output": "6.70M",
+      "reasoning": "0",
+      "cache_read": "55.0M",
+      "cache_write": "6.10M",
+      "cache": "61.1M",
+      "cache_hit": "77%",
+      "cost": "$430"
+    }
+  },
+  "sessions": {
+    "today": 9,
+    "week": 26,
+    "five_hour": 5,
+    "all": 88,
+    "latest": "14:28",
+    "top_project": "n/a"
+  },
+  "activity": {
+    "messages_today": 120,
+    "tools_today": 64,
+    "messages_all": 1800,
+    "sessions_cache_all": 88,
+    "stats_cache_date": "2026-07-06"
+  },
+  "models": [
+    { "name": "claude-opus-4-8", "raw_name": "claude-opus-4-8", "tokens": "6.10M", "raw_tokens": 6100000, "pct": 80, "cost": "$24.00" },
+    { "name": "claude-sonnet-4-6", "raw_name": "claude-sonnet-4-6", "tokens": "1.50M", "raw_tokens": 1500000, "pct": 20, "cost": "$7.00" }
+  ],
+  "daily_bars": [
+    { "day": "Mon", "tokens": "2.90M", "pct": 100 },
+    { "day": "Sun", "tokens": "1.80M", "pct": 62 },
+    { "day": "Sat", "tokens": "1.00M", "pct": 34 },
+    { "day": "Fri", "tokens": "700K", "pct": 24 },
+    { "day": "Thu", "tokens": "500K", "pct": 17 },
+    { "day": "Wed", "tokens": "400K", "pct": 14 },
+    { "day": "Tue", "tokens": "300K", "pct": 10 }
+  ],
+  "streak": 7,
+  "trend": "up",
+  "week_label": "2026-07-05",
+  "month_label": "2026-07",
+  "notes": ["deterministic synthetic schema fixture", "ccusage blocks provides active 5h block reset and burn rate"]
+}
