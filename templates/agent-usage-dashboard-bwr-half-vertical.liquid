@@ -1,0 +1,64 @@
+<style>
+  .agent-usage-screen, .agent-usage-screen * { box-sizing: border-box; }
+  .agent-usage-screen { color-scheme: light; width: 400px; height: 460px; padding: 8px; display: grid; grid-template-rows: 44px 96px 120px 138px 18px; gap: 7px; font-family: Inter, Arial, sans-serif; overflow: hidden; }
+  .agent-usage-screen .title { font-size: 25px; line-height: .95; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agent-usage-screen .meta, .agent-usage-screen .foot { font-size: 11px; line-height: 1; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agent-usage-screen .top { border-bottom: 3px solid #000; min-width: 0; }
+  .agent-usage-screen .limits, .agent-usage-screen .metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .agent-usage-screen .panel { min-width: 0; border-top: 2px solid #000; padding-top: 5px; overflow: hidden; }
+  .agent-usage-screen .label { font-size: 11px; line-height: 1; font-weight: 900; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agent-usage-screen .value { margin-top: 2px; font-size: 24px; line-height: .95; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agent-usage-screen .sub { margin-top: 1px; font-size: 10px; line-height: 1.05; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agent-usage-screen .bar { height: 10px; margin-top: 5px; border: 2px solid #000; background: #fff; }
+  .agent-usage-screen .bar-empty { background: #fff; }
+  .agent-usage-screen .fill { height: 100%; background: repeating-linear-gradient(90deg, #000 0 2px, #fff 2px 4px); }
+  .agent-usage-screen .wide { grid-column: 1 / -1; }
+  .agent-usage-screen .foot { border-top: 2px solid #000; padding-top: 5px; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+</style>
+
+{% assign s = source_1 %}
+{% assign banked_count = s.credits.banked_reset_summary | split: ' @ ' | first %}
+{% assign banked_expiry = s.credits.banked_reset_summary | split: ' @ ' | last %}
+<div class="agent-usage-screen">
+  <header class="top">
+    <div class="title">{{ s.title }}</div>
+    <div class="meta">{{ s.local_datetime }} · refresh {{ s.refresh }} · {{ s.cost_basis }}</div>
+  </header>
+
+  <section class="limits">
+    <div class="panel">
+      <div class="label">{{ s.limits.primary.label }}</div>
+      <div class="value">{{ s.limits.primary.used }}</div>
+      <div class="sub">reset {{ s.limits.primary.reset }}</div>
+      {% if s.limits.primary.used != 'n/a' %}<div class="bar"><div class="fill" style="width: {{ s.limits.primary.used_percent }}%;"></div></div>{% else %}<div class="bar bar-empty"></div>{% endif %}
+    </div>
+    <div class="panel">
+      <div class="label">{{ s.limits.weekly.label }}</div>
+      <div class="value">{{ s.limits.weekly.used }}</div>
+      <div class="sub">reset {{ s.limits.weekly.reset }}</div>
+      {% if s.limits.weekly.used != 'n/a' %}<div class="bar"><div class="fill" style="width: {{ s.limits.weekly.used_percent }}%;"></div></div>{% else %}<div class="bar bar-empty"></div>{% endif %}
+    </div>
+  </section>
+
+  <section class="metrics">
+    <div class="panel wide">
+      <div class="label">{{ s.usage.five_hour.label }} tokens</div>
+      <div class="value">{{ s.usage.five_hour.total }}</div>
+      <div class="sub">{{ s.usage.five_hour.cost }} · cache {{ s.usage.five_hour.cache_hit }} · n {{ s.usage.five_hour.sessions }}</div>
+    </div>
+    <div class="panel"><div class="label">Input</div><div class="value">{{ s.usage.five_hour.input }}</div></div>
+    <div class="panel"><div class="label">Output</div><div class="value">{{ s.usage.five_hour.output }}</div></div>
+  </section>
+
+  <section class="metrics">
+    <div class="panel"><div class="label">Today</div><div class="value">{{ s.usage.today.total }}</div><div class="sub">Token Cost* {{ s.usage.today.cost }}</div></div>
+    <div class="panel"><div class="label">Local 7d</div><div class="value">{{ s.usage.week.total }}</div><div class="sub">Token Cost* {{ s.usage.week.cost }}</div></div>
+    <div class="panel"><div class="label">{% if s.kind == 'codex' %}Banked{% else %}{{ s.limits.scoped.label }}{% endif %}</div><div class="value">{% if s.kind == 'codex' %}{{ banked_count }}{% else %}{{ s.limits.scoped.used }}{% endif %}</div><div class="sub">{% if s.kind == 'codex' %}{% if s.credits.banked_reset_summary contains ' @ ' %}@ {{ banked_expiry }}{% else %}{{ s.credits.banked_reset_summary }}{% endif %}{% else %}reset {{ s.limits.scoped.reset }}{% endif %}</div></div>
+    <div class="panel"><div class="label">Model</div><div class="value">{{ s.models[0].tokens }}</div><div class="sub">{{ s.models[0].name }}</div></div>
+  </section>
+
+  <footer class="foot">
+    <div>{{ s.source }}</div>
+    <div>{{ s.sessions.today }}/{{ s.sessions.week }}/{{ s.sessions.all }}</div>
+  </footer>
+</div>

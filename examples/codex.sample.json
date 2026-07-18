@@ -1,0 +1,156 @@
+{
+  "ok": true,
+  "kind": "codex",
+  "title": "Codex prolite Usage",
+  "local_date": "2026-07-06",
+  "local_time": "14:30",
+  "local_datetime": "2026-07-06 14:30",
+  "refresh": "15m",
+  "cost_basis": "Token Cost*",
+  "source": "ccusage + Codex account + local sessions",
+  "errors": [],
+  "plan": "prolite",
+  "limit_id": "demo",
+  "limit_name": "Codex",
+  "limits": {
+    "primary": {
+      "label": "Weekly all",
+      "used": "37%",
+      "used_percent": 37,
+      "window": "7d",
+      "reset": "Jul 13 09:00",
+      "reset_full": "2026-07-13 09:00"
+    },
+    "weekly": {
+      "label": "Spark",
+      "used": "8%",
+      "used_percent": 8,
+      "window": "7d",
+      "reset": "Jul 13 15:00",
+      "reset_full": "2026-07-13 15:00"
+    }
+  },
+  "credits": {
+    "has_credits": "yes",
+    "balance": "10",
+    "banked_reset": "1",
+    "banked_reset_expires": "2026-07-14 18:00",
+    "banked_reset_expires_short": "07-14 18:00",
+    "banked_reset_summary": "1 @ 07-14 18:00",
+    "banked_reset_source": "fixture"
+  },
+  "usage": {
+    "five_hour": {
+      "label": "Last 5h",
+      "total": "926K",
+      "total_raw": 926000,
+      "input": "220K",
+      "output": "86.0K",
+      "reasoning": "310K",
+      "cache_read": "620K",
+      "cache_write": "0",
+      "cache": "620K",
+      "cache_hit": "74%",
+      "cost": "n/a",
+      "sessions": "18"
+    },
+    "today": {
+      "label": "Today",
+      "total": "2.36M",
+      "total_raw": 2362000,
+      "input": "610K",
+      "output": "210K",
+      "reasoning": "720K",
+      "cache_read": "1.50M",
+      "cache_write": "42.0K",
+      "cache": "1.54M",
+      "cache_hit": "72%",
+      "cost": "$16.42"
+    },
+    "yesterday": {
+      "label": "Yesterday",
+      "total": "1.74M",
+      "total_raw": 1740000,
+      "input": "420K",
+      "output": "180K",
+      "reasoning": "430K",
+      "cache_read": "1.10M",
+      "cache_write": "40.0K",
+      "cache": "1.14M",
+      "cache_hit": "73%",
+      "cost": "$12.36"
+    },
+    "week": {
+      "label": "Last 7d",
+      "total": "7.00M",
+      "total_raw": 7000000,
+      "input": "1.70M",
+      "output": "610K",
+      "reasoning": "2.40M",
+      "cache_read": "4.50M",
+      "cache_write": "190K",
+      "cache": "4.69M",
+      "cache_hit": "73%",
+      "cost": "$48.75"
+    },
+    "month": {
+      "label": "This month",
+      "total": "20.9M",
+      "total_raw": 20910000,
+      "input": "5.70M",
+      "output": "2.10M",
+      "reasoning": "7.20M",
+      "cache_read": "12.6M",
+      "cache_write": "510K",
+      "cache": "13.1M",
+      "cache_hit": "70%",
+      "cost": "$126"
+    },
+    "all": {
+      "label": "All time",
+      "total": "90.0M",
+      "total_raw": 90000000,
+      "input": "24.0M",
+      "output": "8.00M",
+      "reasoning": "30.0M",
+      "cache_read": "55.0M",
+      "cache_write": "3.00M",
+      "cache": "58.0M",
+      "cache_hit": "71%",
+      "cost": "$884"
+    }
+  },
+  "sessions": {
+    "today": 12,
+    "week": 34,
+    "five_hour": 6,
+    "all": 98,
+    "latest": "14:21",
+    "top_project": "n/a"
+  },
+  "account_usage": {
+    "lifetime": "480M",
+    "peak_day": "4.00M",
+    "current_streak": 7,
+    "longest_streak": 14
+  },
+  "activity_scope": "Account activity",
+  "models": [
+    { "name": "gpt-5.6-sol", "tokens": "4.00M", "raw_tokens": 4000000, "pct": 57 },
+    { "name": "gpt-5.6-terra", "tokens": "2.00M", "raw_tokens": 2000000, "pct": 29 },
+    { "name": "gpt-5.5", "tokens": "1.00M", "raw_tokens": 1000000, "pct": 14 }
+  ],
+  "daily_bars": [
+    { "day": "Mon", "tokens": "4.00M", "pct": 100 },
+    { "day": "Sun", "tokens": "2.00M", "pct": 50 },
+    { "day": "Sat", "tokens": "1.00M", "pct": 25 },
+    { "day": "Fri", "tokens": "500K", "pct": 12 },
+    { "day": "Thu", "tokens": "250K", "pct": 6 },
+    { "day": "Wed", "tokens": "125K", "pct": 4 },
+    { "day": "Tue", "tokens": "62.5K", "pct": 4 }
+  ],
+  "streak": 7,
+  "trend": "up",
+  "month_label": "2026-07",
+  "notes": ["deterministic synthetic schema fixture"]
+}

@@ -1,0 +1,382 @@
+{% comment %}
+Black/white/red-safe variant for monochrome or tri-color TRMNL firmware paths.
+Use templates/agent-usage-dashboard.liquid when your renderer and device preserve full color.
+{% endcomment %}
+
+<style>
+  .agent-usage-screen, .agent-usage-screen * { box-sizing: border-box; }
+  .agent-usage-screen {
+    color-scheme: light;
+    width: 800px;
+    height: 480px;
+    overflow: hidden;
+    background: #fff;
+    color: #000;
+    font-family: Inter, Arial, Helvetica, sans-serif;
+    padding: 4px;
+    display: grid;
+    grid-template-rows: 34px 58px 190px 146px 22px;
+    gap: 4px;
+  }
+  .agent-usage-screen .top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    border-bottom: 4px solid #000;
+    min-width: 0;
+  }
+  .agent-usage-screen .title {
+    min-width: 0;
+    font-size: 30px;
+    line-height: 1;
+    font-weight: 900;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .agent-usage-screen .meta {
+    font-size: 13px;
+    line-height: 1;
+    font-weight: 900;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .agent-usage-screen .limits {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    min-height: 0;
+  }
+  .agent-usage-screen .limit {
+    min-width: 0;
+    border-top: 3px solid #000;
+    padding-top: 4px;
+  }
+  .agent-usage-screen .limit-line {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 7px;
+    align-items: baseline;
+    min-width: 0;
+  }
+  .agent-usage-screen .limit-label {
+    font-size: 15px;
+    line-height: 1;
+    font-weight: 900;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .agent-usage-screen .limit-used {
+    font-size: 30px;
+    line-height: .92;
+    font-weight: 900;
+    color: #ff0000;
+    white-space: nowrap;
+  }
+  .agent-usage-screen .limit-reset {
+    font-size: 14px;
+    line-height: 1;
+    font-weight: 900;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .agent-usage-screen .bar {
+    height: 14px;
+    margin-top: 5px;
+    border: 2px solid #000;
+    background: #fff;
+    overflow: hidden;
+  }
+  .agent-usage-screen .bar-empty {
+    background: #fff;
+  }
+  .agent-usage-screen .fill {
+    height: 100%;
+    min-width: 2px;
+    background: #000;
+  }
+  .agent-usage-screen .main {
+    display: grid;
+    grid-template-columns: 248px 256px 272px;
+    gap: 8px;
+    min-height: 0;
+  }
+  .agent-usage-screen .panel {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-top: 4px solid #000;
+    padding-top: 5px;
+  }
+  .agent-usage-screen .panel + .panel {
+    border-left: 2px solid #000;
+    padding-left: 8px;
+  }
+  .agent-usage-screen .label {
+    font-size: 13px;
+    line-height: 1;
+    font-weight: 900;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .agent-usage-screen .hero-value {
+    margin-top: 4px;
+    font-size: 50px;
+    line-height: .9;
+    font-weight: 900;
+    color: #000;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .agent-usage-screen .subline {
+    margin-top: 4px;
+    font-size: 14px;
+    line-height: 1;
+    font-weight: 900;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .agent-usage-screen .metric-grid {
+    margin-top: 7px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .agent-usage-screen .metric {
+    min-width: 0;
+    border-top: 2px solid #000;
+    padding-top: 3px;
+  }
+  .agent-usage-screen .metric-label {
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 900;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .agent-usage-screen .metric-value {
+    margin-top: 2px;
+    font-size: 23px;
+    line-height: .95;
+    font-weight: 900;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .agent-usage-screen .blue { color: #000; }
+  .agent-usage-screen .red { color: #ff0000; }
+  .agent-usage-screen .green { color: #000; }
+  .agent-usage-screen .status-list {
+    margin-top: 6px;
+    display: grid;
+    gap: 5px;
+  }
+  .agent-usage-screen .status-row {
+    display: grid;
+    grid-template-columns: 86px 1fr;
+    gap: 6px;
+    min-width: 0;
+    border-top: 2px solid #000;
+    padding-top: 3px;
+  }
+  .agent-usage-screen .status-key {
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 900;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .agent-usage-screen .status-val {
+    font-size: 17px;
+    line-height: 1;
+    font-weight: 900;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .agent-usage-screen .lower {
+    display: grid;
+    grid-template-columns: 460px 320px;
+    gap: 10px;
+    min-height: 0;
+  }
+  .agent-usage-screen .models, .agent-usage-screen .trend {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-top: 4px solid #000;
+    padding-top: 5px;
+  }
+  .agent-usage-screen .trend { border-left: 2px solid #000; padding-left: 8px; }
+  .agent-usage-screen .model-row {
+    display: grid;
+    grid-template-columns: 188px 64px 1fr;
+    gap: 7px;
+    align-items: center;
+    min-width: 0;
+    margin-top: 7px;
+  }
+  .agent-usage-screen .model-name, .agent-usage-screen .model-tokens {
+    font-size: 14px;
+    line-height: 1;
+    font-weight: 900;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .agent-usage-screen .model-tokens { text-align: right; }
+  .agent-usage-screen .smallbar {
+    height: 12px;
+    border: 2px solid #000;
+    background: #fff;
+    overflow: hidden;
+  }
+  .agent-usage-screen .smallfill { height: 100%; background: #000; min-width: 0; }
+  .agent-usage-screen .day-row {
+    display: grid;
+    grid-template-columns: 34px 64px 1fr;
+    gap: 6px;
+    align-items: center;
+    margin-top: 3px;
+  }
+  .agent-usage-screen .day-label, .agent-usage-screen .day-val {
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 900;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .agent-usage-screen .day-val { text-align: right; }
+  .agent-usage-screen .trend .smallbar { height: 10px; }
+  .agent-usage-screen .foot {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    border-top: 3px solid #000;
+    padding-top: 4px;
+    min-width: 0;
+    font-size: 12px;
+    line-height: 1;
+    font-weight: 900;
+  }
+  .agent-usage-screen .foot-left, .agent-usage-screen .foot-right {
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .agent-usage-screen .foot-right { text-align: right; }
+</style>
+
+{% assign s = source_1 %}
+<div class="agent-usage-screen">
+  <header class="top">
+    <div class="title">{{ s.title }}</div>
+    <div class="meta">{{ s.local_datetime }} &middot; refresh {{ s.refresh }} &middot; {{ s.cost_basis }}</div>
+  </header>
+
+  {% if s.ok == false %}
+    <section class="main" style="grid-column: 1 / -1;">
+      <div class="panel">
+        <div class="label">Feed error</div>
+        <div class="hero-value red">NO DATA</div>
+        <div class="subline">{{ s.errors[0] }}</div>
+      </div>
+    </section>
+  {% else %}
+    <section class="limits">
+      <div class="limit">
+        <div class="limit-line">
+          <div class="limit-label">{{ s.limits.primary.label }}</div>
+          <div class="limit-used">{{ s.limits.primary.used }}</div>
+          <div class="limit-reset">{{ s.limits.primary.window }} reset {{ s.limits.primary.reset }}</div>
+        </div>
+        {% if s.limits.primary.used != 'n/a' %}<div class="bar"><div class="fill" style="width: {{ s.limits.primary.used_percent }}%;"></div></div>{% else %}<div class="bar bar-empty"></div>{% endif %}
+      </div>
+      <div class="limit">
+        <div class="limit-line">
+          <div class="limit-label">{{ s.limits.weekly.label }}</div>
+          <div class="limit-used">{{ s.limits.weekly.used }}</div>
+          <div class="limit-reset">{{ s.limits.weekly.window }} reset {{ s.limits.weekly.reset }}</div>
+        </div>
+        {% if s.limits.weekly.used != 'n/a' %}<div class="bar"><div class="fill" style="width: {{ s.limits.weekly.used_percent }}%;"></div></div>{% else %}<div class="bar bar-empty"></div>{% endif %}
+      </div>
+    </section>
+
+    <section class="main">
+      <div class="panel">
+        <div class="label">{{ s.usage.five_hour.label }} tokens</div>
+        <div class="hero-value">{{ s.usage.five_hour.total }}</div>
+        <div class="subline">cost {{ s.usage.five_hour.cost }} &middot; cache {{ s.usage.five_hour.cache_hit }} &middot; n {{ s.usage.five_hour.sessions }}</div>
+        <div class="metric-grid">
+          <div class="metric"><div class="metric-label">Input</div><div class="metric-value">{{ s.usage.five_hour.input }}</div></div>
+          <div class="metric"><div class="metric-label">Output</div><div class="metric-value red">{{ s.usage.five_hour.output }}</div></div>
+          <div class="metric"><div class="metric-label">Cache read</div><div class="metric-value green">{{ s.usage.five_hour.cache_read }}</div></div>
+          <div class="metric"><div class="metric-label">Reasoning</div><div class="metric-value">{{ s.usage.five_hour.reasoning }}</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="label">{% if s.account_usage.lifetime %}Local / account totals{% else %}Local usage totals{% endif %}</div>
+        <div class="metric-grid">
+          <div class="metric"><div class="metric-label">Today</div><div class="metric-value blue">{{ s.usage.today.total }}</div></div>
+          <div class="metric"><div class="metric-label">Today Token Cost*</div><div class="metric-value">{{ s.usage.today.cost }}</div></div>
+          <div class="metric"><div class="metric-label">Local 7d</div><div class="metric-value blue">{{ s.usage.week.total }}</div></div>
+          <div class="metric"><div class="metric-label">7d Token Cost*</div><div class="metric-value">{{ s.usage.week.cost }}</div></div>
+          <div class="metric"><div class="metric-label">Local month</div><div class="metric-value">{{ s.usage.month.total }}</div></div>
+          <div class="metric"><div class="metric-label">{% if s.account_usage.lifetime %}Account all{% else %}Local all{% endif %}</div><div class="metric-value">{% if s.account_usage.lifetime %}{{ s.account_usage.lifetime }}{% else %}{{ s.usage.all.total }}{% endif %}</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        {% if s.kind == 'codex' %}
+          <div class="label">Codex limits / banked</div>
+          <div class="status-list">
+            <div class="status-row"><div class="status-key">{% if s.limits.primary.label == 'Weekly all' %}Week{% else %}{{ s.limits.primary.label }}{% endif %} reset</div><div class="status-val">{{ s.limits.primary.reset_full }}</div></div>
+            <div class="status-row"><div class="status-key">{% if s.limits.weekly.label == 'Weekly all' %}Week{% else %}{{ s.limits.weekly.label }}{% endif %} reset</div><div class="status-val">{{ s.limits.weekly.reset_full }}</div></div>
+            <div class="status-row"><div class="status-key">Credits</div><div class="status-val">{{ s.credits.has_credits }} / {{ s.credits.balance }}</div></div>
+            <div class="status-row"><div class="status-key">Banked</div><div class="status-val">{{ s.credits.banked_reset_summary }}</div></div>
+          </div>
+        {% else %}
+          <div class="label">Claude limits / block</div>
+          <div class="status-list">
+            <div class="status-row"><div class="status-key">Scoped</div><div class="status-val">{% if s.limits.scoped and s.limits.scoped.used and s.limits.scoped.used != 'n/a' %}{{ s.limits.scoped.label }} {{ s.limits.scoped.used }}{% else %}n/a{% endif %}</div></div>
+            <div class="status-row"><div class="status-key">Scope reset</div><div class="status-val">{% if s.limits.scoped and s.limits.scoped.reset_full %}{{ s.limits.scoped.reset_full }}{% else %}n/a{% endif %}</div></div>
+            <div class="status-row"><div class="status-key">Block left</div><div class="status-val">{{ s.block.remaining }} min</div></div>
+            <div class="status-row"><div class="status-key">Burn</div><div class="status-val">{{ s.block.burn_tokens_min }}/m · {{ s.block.burn_cost_hr }}/h</div></div>
+            <div class="status-row"><div class="status-key">Projected</div><div class="status-val">{{ s.block.projected_tokens }} / {{ s.block.projected_cost }}</div></div>
+            <div class="status-row"><div class="status-key">Usage auth</div><div class="status-val">{{ s.auth.usage }}</div></div>
+          </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="lower">
+      <div class="models">
+        <div class="label">Local models, 7d</div>
+        {% for m in s.models limit: 5 %}
+          <div class="model-row">
+            <div class="model-name">{{ m.name }}</div>
+            <div class="model-tokens">{{ m.tokens }}</div>
+            <div class="smallbar"><div class="smallfill" style="width: {{ m.pct }}%;"></div></div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="trend">
+        <div class="label">{{ s.activity_scope | default: 'Daily activity' }}</div>
+        {% for d in s.daily_bars limit: 7 %}
+          <div class="day-row">
+            <div class="day-label">{{ d.day }}</div>
+            <div class="day-val">{{ d.tokens }}</div>
+            <div class="smallbar"><div class="smallfill" style="width: {{ d.pct }}%;"></div></div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+  <footer class="foot">
+      <div class="foot-left">{{ s.source }}</div>
+      <div class="foot-right">sess {{ s.sessions.today }}/{{ s.sessions.week }}/{{ s.sessions.all }}{% if s.kind == 'claude' and s.statusline and s.statusline.captured_age %} &middot; line {{ s.statusline.captured_age }}{% endif %}</div>
+    </footer>
+  {% endif %}
+</div>

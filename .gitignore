@@ -1,0 +1,21 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+build/
+*.egg-info/
+
+# Generated local feeds and runtime caches.
+feeds/
+.local-cache/
+*.local.json
+*.log
+
+# Keep user-specific deployment files out of the repo.
+.env
+.env.*
+!examples/env.example

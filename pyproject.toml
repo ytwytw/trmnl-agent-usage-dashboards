@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trmnl-agent-usage-dashboards"
+version = "0.1.0"
+description = "Local JSON feeds and TRMNL templates for Codex CLI and Claude Code usage dashboards."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "ytwytw" }]
+dependencies = []
+keywords = ["trmnl", "terminus", "codex", "claude-code", "e-paper", "dashboard"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://github.com/ytwytw/trmnl-agent-usage-dashboards"
+Repository = "https://github.com/ytwytw/trmnl-agent-usage-dashboards"
+Issues = "https://github.com/ytwytw/trmnl-agent-usage-dashboards/issues"
+
+[project.scripts]
+trmnl-agent-usage-collect = "trmnl_agent_usage.collect_usage_feeds:main"
+trmnl-agent-usage-push = "trmnl_agent_usage.push_usage_feeds:main"
+trmnl-agent-usage-serve = "trmnl_agent_usage.serve_usage_feeds:main"
+trmnl-agent-usage-capture-claude-statusline = "trmnl_agent_usage.capture_claude_statusline:main"
+
+[tool.setuptools]
+packages = ["trmnl_agent_usage"]
