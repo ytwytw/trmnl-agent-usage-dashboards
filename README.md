@@ -2,7 +2,7 @@
 
 Local JSON feeds and 800x480 TRMNL Liquid templates for two e-paper dashboards:
 
-- Codex CLI usage, token totals, native rate limits, credits, and banked reset expiry when available.
+- Codex CLI usage, token totals, native rate limits, credits, and account lifetime/streak totals when available.
 - Claude Code usage, active 5-hour block, burn rate, projection, native rate limits, and model mix.
 
 The collector publishes aggregate metrics only. It does not publish prompts, raw JSONL records, credentials, local

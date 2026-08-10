@@ -32,12 +32,7 @@
   },
   "credits": {
     "has_credits": "yes",
-    "balance": "10",
-    "banked_reset": "1",
-    "banked_reset_expires": "2026-07-14 18:00",
-    "banked_reset_expires_short": "07-14 18:00",
-    "banked_reset_summary": "1 @ 07-14 18:00",
-    "banked_reset_source": "fixture"
+    "balance": "10"
   },
   "usage": {
     "five_hour": {

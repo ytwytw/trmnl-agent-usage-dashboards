@@ -329,12 +329,12 @@ Use templates/agent-usage-dashboard.liquid when your renderer and device preserv
 
       <div class="panel">
         {% if s.kind == 'codex' %}
-          <div class="label">Codex limits / banked</div>
+          <div class="label">Codex limits / credits</div>
           <div class="status-list">
             <div class="status-row"><div class="status-key">{% if s.limits.primary.label == 'Weekly all' %}Week{% else %}{{ s.limits.primary.label }}{% endif %} reset</div><div class="status-val">{{ s.limits.primary.reset_full }}</div></div>
             <div class="status-row"><div class="status-key">{% if s.limits.weekly.label == 'Weekly all' %}Week{% else %}{{ s.limits.weekly.label }}{% endif %} reset</div><div class="status-val">{{ s.limits.weekly.reset_full }}</div></div>
             <div class="status-row"><div class="status-key">Credits</div><div class="status-val">{{ s.credits.has_credits }} / {{ s.credits.balance }}</div></div>
-            <div class="status-row"><div class="status-key">Banked</div><div class="status-val">{{ s.credits.banked_reset_summary }}</div></div>
+            {% if s.account_usage.current_streak %}<div class="status-row"><div class="status-key">Streak</div><div class="status-val">{{ s.account_usage.current_streak }}d &middot; peak {{ s.account_usage.peak_day }}</div></div>{% endif %}
           </div>
         {% else %}
           <div class="label">Claude limits / block</div>

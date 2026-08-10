@@ -1494,48 +1494,34 @@ class CollectorHelperTests(unittest.TestCase):
         self.assertIsNone(usage["longest_streak"])
         self.assertEqual(usage["daily_rows"], [])
 
-    def test_codex_private_reset_credit_endpoint_is_opt_in(self) -> None:
-        originals = {
-            "ccusage": collector.ccusage,
-            "latest_codex_rate_limits": collector.latest_codex_rate_limits,
-            "read_codex_app_data": collector.read_codex_app_data,
-            "read_codex_private_reset_credits": collector.read_codex_private_reset_credits,
+    def test_read_codex_app_data_ignores_retired_reset_credits(self) -> None:
+        """OpenAI retired banked resets; the payload key must not revive the feature."""
+        rpc_response = {
+            "rate-limits": {
+                "result": {
+                    "rateLimitResetCredits": {"availableCount": 3, "credits": []},
+                    "rateLimits": {
+                        "limitId": "codex",
+                        "planType": "pro",
+                        "primary": {"usedPercent": 25, "windowDurationMins": 10080, "resetsAt": 1786826036},
+                        "secondary": None,
+                    },
+                }
+            },
+            "account-usage": {"result": {"summary": {"lifetimeTokens": 1}, "dailyUsageBuckets": []}},
         }
+        notes: list[str] = []
+        with mock.patch.object(collector, "codex_app_server_rpc", return_value=rpc_response):
+            returned = collector.read_codex_app_data("codex", notes)
 
-        def fake_ccusage(_bin, args, _tz_name, _offline, _errors):
-            if args[1] == "daily":
-                return {"daily": [], "totals": {}}
-            if args[1] == "monthly":
-                return {"monthly": []}
-            if args[1] == "session":
-                return {"sessions": []}
-            self.fail(f"unexpected ccusage args: {args}")
+        self.assertEqual(len(returned), 2, "read_codex_app_data must return (rate_limits, account_usage)")
+        rate_limits, account_usage = returned
+        self.assertEqual(rate_limits["limit_id"], "codex")
+        self.assertEqual(rate_limits["plan_type"], "pro")
+        self.assertEqual(account_usage["lifetime"], "1")
+        self.assertNotIn("bank", " ".join(notes).lower())
 
-        def fail_private_endpoint(*_args, **_kwargs):
-            raise AssertionError("private reset-credit endpoint should not be called by default")
-
-        try:
-            collector.ccusage = fake_ccusage
-            collector.latest_codex_rate_limits = lambda _root: (None, None, {}, 0)
-            collector.read_codex_app_data = lambda _bin, _notes: (None, None, None)
-            collector.read_codex_private_reset_credits = fail_private_endpoint
-            feed = collector.build_codex(
-                "ccusage",
-                "UTC",
-                ZoneInfo("UTC"),
-                Path("/tmp/nonexistent-codex-root"),
-                True,
-                "codex",
-                False,
-            )
-        finally:
-            for name, value in originals.items():
-                setattr(collector, name, value)
-
-        self.assertTrue(feed["ok"])
-        self.assertIn("Private reset-credit endpoint disabled", feed["notes"])
-
-    def test_codex_private_reset_credit_endpoint_is_skipped_when_supported_details_exist(self) -> None:
+    def test_codex_feed_exposes_no_banked_reset_fields(self) -> None:
         def fake_ccusage(_bin, args, _tz_name, _offline, _errors):
             if args[1] == "daily":
                 return {"daily": [], "totals": {}}
@@ -1548,18 +1534,14 @@ class CollectorHelperTests(unittest.TestCase):
         app_limits = {
             "limit_id": "codex",
             "plan_type": "pro",
-            "primary": {"used_percent": 10, "window_minutes": 300},
-            "secondary": {"used_percent": 20, "window_minutes": 10080},
-        }
-        supported = {
-            "availableCount": 1,
-            "credits": [{"status": "available", "expiresAt": "2026-07-17T00:00:00Z"}],
+            "credits": {"has_credits": False, "balance": "0", "unlimited": False},
+            "primary": {"used_percent": 25, "window_minutes": 10080},
+            "secondary": None,
         }
         with (
             mock.patch.object(collector, "ccusage", side_effect=fake_ccusage),
             mock.patch.object(collector, "latest_codex_rate_limits", return_value=(None, None, {}, 0)),
-            mock.patch.object(collector, "read_codex_app_data", return_value=(app_limits, supported, None)),
-            mock.patch.object(collector, "read_codex_private_reset_credits") as private_read,
+            mock.patch.object(collector, "read_codex_app_data", return_value=(app_limits, None)),
         ):
             feed = collector.build_codex(
                 "ccusage",
@@ -1568,50 +1550,24 @@ class CollectorHelperTests(unittest.TestCase):
                 Path("/tmp/nonexistent-codex-root"),
                 True,
                 "codex",
-                True,
             )
 
-        private_read.assert_not_called()
-        self.assertEqual(feed["credits"]["banked_reset_source"], "app-server")
-        self.assertIn("private fallback not needed", " ".join(feed["notes"]))
+        self.assertTrue(feed["ok"])
+        self.assertEqual(sorted(feed["credits"]), ["balance", "has_credits"])
+        self.assertEqual(feed["credits"], {"has_credits": "no", "balance": "0"})
+        self.assertNotIn("bank", json.dumps(feed).lower())
 
-    def test_reset_credit_display_keeps_supported_count_with_private_expiry_fallback(self) -> None:
-        tz = ZoneInfo("UTC")
-        display = collector.reset_credit_display(
-            {"availableCount": 1},
-            {
-                "available_count": 2,
-                "credits": [
-                    {"status": "available", "expires_at": "2026-07-17T00:00:00Z"},
-                    {"status": "redeemed", "expires_at": "2026-07-01T00:00:00Z"},
-                ],
-            },
-            tz,
-        )
-        self.assertEqual(display["banked_reset"], "1")
-        self.assertEqual(display["banked_reset_expires"], "2026-07-17 00:00")
-        self.assertEqual(display["banked_reset_expires_short"], "07-17 00:00")
-        self.assertEqual(display["banked_reset_summary"], "1 @ 07-17 00:00")
-        self.assertEqual(display["banked_reset_source"], "app-server + private wham")
-
-    def test_reset_credit_display_prefers_supported_expiry_details(self) -> None:
-        display = collector.reset_credit_display(
-            {
-                "availableCount": 2,
-                "credits": [
-                    {"status": "available", "expiresAt": "2026-07-16T12:00:00Z"},
-                    {"status": "redeemed", "expiresAt": "2026-07-01T00:00:00Z"},
-                ],
-            },
-            {
-                "available_count": 9,
-                "credits": [{"status": "available", "expires_at": "2026-07-15T00:00:00Z"}],
-            },
-            ZoneInfo("UTC"),
-        )
-        self.assertEqual(display["banked_reset"], "2")
-        self.assertEqual(display["banked_reset_expires"], "2026-07-16 12:00")
-        self.assertEqual(display["banked_reset_source"], "app-server")
+    def test_collector_retains_no_banked_reset_surface(self) -> None:
+        """The opt-in flag, the private wham endpoint, and the display helper are gone."""
+        for name in (
+            "read_codex_private_reset_credits",
+            "supported_reset_credit_expiries",
+            "reset_credit_display",
+        ):
+            self.assertFalse(hasattr(collector, name), f"{name} should have been removed")
+        source = Path(collector.__file__).read_text(encoding="utf-8").lower()
+        for token in ("banked", "wham", "reset-credit", "reset_credit"):
+            self.assertNotIn(token, source, f"collector still references {token!r}")
 
     def test_claude_statusline_cache_drives_limit_cards(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

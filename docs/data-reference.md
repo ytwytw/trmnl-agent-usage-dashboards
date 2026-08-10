@@ -93,7 +93,9 @@ response contains multiple named buckets, the general Codex bucket is preferred 
 `Spark` can occupy the second dashboard slot. If the response does not expose a 5-hour bucket, `Weekly all` is promoted
 to the first slot; weekly usage is never relabeled as a 5-hour percentage.
 
-Supported reset-credit count and per-credit `expiresAt` values are authoritative when present.
+OpenAI retired banked rate-limit resets, so the collector no longer reads, derives, or publishes them. The
+`rateLimitResetCredits` object is ignored even when the app-server still returns it, and `credits` now carries only
+`has_credits` and `balance`.
 
 ### Account and local scope
 
@@ -111,18 +113,6 @@ The rolling 5-hour token total follows current `ccusage` semantics:
 - cached input is separated from non-cached input.
 
 This avoids inflated totals from summing every cumulative `last_token_usage` record.
-
-### Optional private reset-credit fallback
-
-The unofficial ChatGPT reset-credit endpoint is disabled by default:
-
-```sh
-export TRMNL_AGENT_USAGE_ENABLE_CODEX_PRIVATE_RESET_CREDITS=true
-```
-
-When explicitly enabled, it is used only to fill missing banked-reset expiry. The supported app-server count remains
-authoritative. The collector requests an in-memory token from Codex app-server, performs one request, and does not write
-the token to feeds. This endpoint is undocumented and may change or stop working without notice.
 
 ## Claude Code
 
@@ -289,16 +279,16 @@ The collector was integration-tested on 2026-07-20 with:
 
 | Tool | Version |
 | --- | --- |
-| Codex CLI | `0.144.6` |
-| Claude Code | `2.1.215` |
-| `ccusage` | `20.0.17` |
+| Codex CLI | `0.147.0` |
+| Claude Code | `2.1.226` |
+| `ccusage` | `20.0.19` |
 
-Tests cover current Codex multi-bucket and account-usage responses, supported reset-credit expiry, fork/subagent replay,
-Codex cached-input aliases, Claude OAuth expiry and limit shapes, per-feed exception isolation, sanitized failure feeds,
-and stale statusline behavior.
+Tests cover current Codex multi-bucket and account-usage responses, retired banked-reset fields staying absent,
+fork/subagent replay, Codex cached-input aliases, Claude OAuth expiry and limit shapes, per-feed exception isolation,
+sanitized failure feeds, and stale statusline behavior.
 
-CLI output and private endpoints can change independently of this repository. When upgrading a CLI, run the complete
-test suite and inspect a sanitized live feed before updating the compatibility table.
+CLI output can change independently of this repository. When upgrading a CLI, run the complete test suite and inspect a
+sanitized live feed before updating the compatibility table.
 
 ## Upstream References
 

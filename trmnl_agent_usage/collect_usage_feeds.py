@@ -129,15 +129,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--codex-title", default=DEFAULT_CODEX_TITLE)
     parser.add_argument("--claude-title", default=DEFAULT_CLAUDE_TITLE)
     parser.add_argument(
-        "--enable-codex-private-reset-credits",
-        action="store_true",
-        default=env_flag("TRMNL_AGENT_USAGE_ENABLE_CODEX_PRIVATE_RESET_CREDITS"),
-        help=(
-            "Opt in to the unofficial ChatGPT reset-credit endpoint. "
-            "The collector reads the Codex app-server token in memory only and does not write it to feeds."
-        ),
-    )
-    parser.add_argument(
         "--enable-claude-oauth-usage",
         action="store_true",
         default=env_flag("TRMNL_AGENT_USAGE_ENABLE_CLAUDE_OAUTH_USAGE"),
@@ -1314,10 +1305,10 @@ def classify_codex_rate_limit_windows(snapshot: dict[str, Any] | None) -> dict[s
 def read_codex_app_data(
     codex_bin: str | None,
     notes: list[str],
-) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     if not codex_bin:
         notes.append("Codex app-server not found")
-        return None, None, None
+        return None, None
     try:
         responses = codex_app_server_rpc(
             codex_bin,
@@ -1329,131 +1320,20 @@ def read_codex_app_data(
         )
     except Exception as exc:  # noqa: BLE001 - optional app-server path.
         notes.append(f"Codex app-server read failed: {type(exc).__name__}")
-        return None, None, None
+        return None, None
     rate_result = (responses.get("rate-limits") or {}).get("result")
     usage_result = (responses.get("account-usage") or {}).get("result")
     if not isinstance(rate_result, dict):
         notes.append("Codex app-server rate limits unavailable")
     rate_limits = normalize_codex_rate_limit_response(rate_result)
-    reset_credits = (
-        rate_result.get("rateLimitResetCredits")
-        if isinstance(rate_result, dict) and isinstance(rate_result.get("rateLimitResetCredits"), dict)
-        else None
-    )
     account_usage = normalize_codex_account_usage(usage_result)
     if rate_limits:
         notes.append("Codex rate limits from supported app-server")
         if (rate_limits.get("limits_by_id") or {}):
             notes.append("Codex multi-limit buckets from rateLimitsByLimitId")
-    if reset_credits:
-        notes.append("Banked reset count from supported app-server")
     if account_usage:
         notes.append("Account lifetime and activity from supported app-server")
-    return rate_limits, reset_credits, account_usage
-
-
-def read_codex_private_reset_credits(codex_bin: str | None, notes: list[str]) -> dict[str, Any] | None:
-    if not codex_bin:
-        return None
-    try:
-        response = codex_app_server_rpc(
-            codex_bin,
-            [
-                {
-                    "id": "auth",
-                    "method": "getAuthStatus",
-                    "params": {"includeToken": True, "refreshToken": True},
-                }
-            ],
-            timeout=25,
-        ).get("auth")
-        token = ((response or {}).get("result") or {}).get("authToken")
-        if not token:
-            notes.append("Private reset-credit endpoint unavailable: no app-server token")
-            return None
-        request = urllib.request.Request(
-            "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/json",
-                "User-Agent": "TRMNLAgentUsageCollector/1",
-            },
-        )
-        with urllib.request.urlopen(request, timeout=20) as resp:
-            data = json.loads(resp.read(20000))
-    except urllib.error.HTTPError as exc:
-        notes.append(f"Private reset-credit endpoint HTTP {exc.code}")
-        return None
-    except Exception as exc:  # noqa: BLE001 - optional private endpoint.
-        notes.append(f"Private reset-credit endpoint failed: {type(exc).__name__}")
-        return None
-    if isinstance(data, dict):
-        notes.append("Banked reset expiry from private wham endpoint")
-        return data
-    return None
-
-
-def supported_reset_credit_expiries(data: dict[str, Any] | None) -> list[datetime]:
-    expires: list[datetime] = []
-    for credit in (data or {}).get("credits") or []:
-        if not isinstance(credit, dict) or str(credit.get("status") or "").lower() != "available":
-            continue
-        dt = parse_dt(credit.get("expiresAt"))
-        if dt:
-            expires.append(dt)
-    return expires
-
-
-def reset_credit_display(
-    supported: dict[str, Any] | None,
-    private: dict[str, Any] | None,
-    tz: ZoneInfo,
-) -> dict[str, str]:
-    available: int | None = None
-    if isinstance(supported, dict) and supported.get("availableCount") is not None:
-        try:
-            available = int(supported.get("availableCount"))
-        except (TypeError, ValueError):
-            available = None
-    if available is None and isinstance(private, dict) and private.get("available_count") is not None:
-        try:
-            available = int(private.get("available_count"))
-        except (TypeError, ValueError):
-            pass
-
-    supported_expires = supported_reset_credit_expiries(supported)
-
-    private_expires: list[datetime] = []
-    for credit in (private or {}).get("credits") or []:
-        if not isinstance(credit, dict) or credit.get("status") != "available":
-            continue
-        dt = parse_dt(credit.get("expires_at"))
-        if dt:
-            private_expires.append(dt)
-
-    expires = supported_expires or private_expires
-    earliest_expiry = min(expires) if expires else None
-    if available is None:
-        count = "not exposed"
-    else:
-        count = str(available)
-    return {
-        "banked_reset": count,
-        "banked_reset_expires": local_dt(earliest_expiry, tz) if earliest_expiry else "not exposed",
-        "banked_reset_expires_short": earliest_expiry.astimezone(tz).strftime("%m-%d %H:%M") if earliest_expiry else "not exposed",
-        "banked_reset_summary": f"{count} @ {earliest_expiry.astimezone(tz).strftime('%m-%d %H:%M')}"
-        if earliest_expiry and count != "not exposed"
-        else (f"{count} resets" if count != "not exposed" else "not exposed"),
-        "banked_reset_source": (
-            "app-server"
-            if supported_expires
-            else (
-                "app-server + private wham"
-                if private_expires and isinstance(supported, dict) and supported.get("availableCount") is not None
-                else ("private wham" if private_expires else ("app-server" if available is not None else "not exposed"))
-            )
-        ),
-    }
+    return rate_limits, account_usage
 
 
 def load_claude_statusline_cache(
@@ -1844,7 +1724,6 @@ def build_codex(
     codex_root: Path,
     offline: bool,
     codex_bin: str | None,
-    enable_private_reset_credits: bool,
     title: str | None = DEFAULT_CODEX_TITLE,
 ) -> dict[str, Any]:
     errors: list[str] = []
@@ -1871,15 +1750,7 @@ def build_codex(
     all_metrics = normalize_metrics(daily.get("totals") or {})
     source_notes = ["Costs are API-rate estimates calculated from tokens, not subscription charges"]
     jsonl_rate_limits, jsonl_credits, five_hour_metrics, five_hour_events = latest_codex_rate_limits(codex_root)
-    app_rate_limits, supported_reset_credits, account_usage = read_codex_app_data(codex_bin, source_notes)
-    supported_reset_expiries = supported_reset_credit_expiries(supported_reset_credits)
-    private_reset_credits = None
-    if enable_private_reset_credits and not supported_reset_expiries:
-        private_reset_credits = read_codex_private_reset_credits(codex_bin, source_notes)
-    elif enable_private_reset_credits:
-        source_notes.append("Banked reset expiry from supported app-server; private fallback not needed")
-    if not enable_private_reset_credits:
-        source_notes.append("Private reset-credit endpoint disabled")
+    app_rate_limits, account_usage = read_codex_app_data(codex_bin, source_notes)
     rate_limits = classify_codex_rate_limit_windows(app_rate_limits or jsonl_rate_limits)
     if not app_rate_limits:
         source_notes.append("Codex rate limits from session JSONL" if jsonl_rate_limits else "Codex rate_limits not found")
@@ -1893,7 +1764,6 @@ def build_codex(
         raw_balance = credit_source.get("balance")
         balance = str(raw_balance) if raw_balance is not None else "0"
         has_credits = "yes" if credit_source.get("has_credits") else "no"
-    reset_display = reset_credit_display(supported_reset_credits, private_reset_credits, tz)
 
     latest_month = (monthly.get("monthly") or [])[-1] if monthly.get("monthly") else {}
     session_counts = sessions_summary(sessions, now, week_start)
@@ -1925,7 +1795,6 @@ def build_codex(
         "credits": {
             "has_credits": has_credits,
             "balance": balance,
-            **reset_display,
         },
         "usage": {
             "five_hour": unknown_cost(usage_card("Last 5h", five_hour_metrics, five_hour_events)),
@@ -2249,7 +2118,6 @@ def main() -> int:
             Path(args.codex_root).expanduser(),
             offline,
             codex_bin,
-            bool(args.enable_codex_private_reset_credits),
             args.codex_title,
         ),
     )

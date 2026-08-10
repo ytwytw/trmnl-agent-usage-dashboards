@@ -18,8 +18,6 @@
 </style>
 
 {% assign s = source_1 %}
-{% assign banked_count = s.credits.banked_reset_summary | split: ' @ ' | first %}
-{% assign banked_expiry = s.credits.banked_reset_summary | split: ' @ ' | last %}
 <div class="agent-usage-screen">
   <header class="top">
     <div class="title">{{ s.title }}</div>
@@ -44,7 +42,7 @@
   <section class="metrics">
     <div class="card"><div class="label">{{ s.usage.five_hour.label }}</div><div class="value">{{ s.usage.five_hour.total }}</div><div class="sub">Token Cost* {{ s.usage.five_hour.cost }}</div></div>
     <div class="card"><div class="label">Local 7d</div><div class="value">{{ s.usage.week.total }}</div><div class="sub">Token Cost* {{ s.usage.week.cost }}</div></div>
-    <div class="card"><div class="label">{% if s.kind == 'codex' %}Banked{% else %}{{ s.limits.scoped.label }}{% endif %}</div><div class="value">{% if s.kind == 'codex' %}{{ banked_count }}{% else %}{{ s.limits.scoped.used }}{% endif %}</div><div class="sub">{% if s.kind == 'codex' %}{% if s.credits.banked_reset_summary contains ' @ ' %}@ {{ banked_expiry }}{% else %}{{ s.credits.banked_reset_summary }}{% endif %}{% else %}{{ s.limits.scoped.reset }}{% endif %}</div></div>
+    <div class="card"><div class="label">{% if s.kind == 'codex' %}Streak{% else %}{{ s.limits.scoped.label }}{% endif %}</div><div class="value">{% if s.kind == 'codex' %}{{ s.account_usage.current_streak | default: 0 }}d{% else %}{{ s.limits.scoped.used }}{% endif %}</div><div class="sub">{% if s.kind == 'codex' %}peak {{ s.account_usage.peak_day | default: 'n/a' }}{% else %}{{ s.limits.scoped.reset }}{% endif %}</div></div>
   </section>
 
   <footer class="foot">

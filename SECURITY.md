@@ -13,8 +13,8 @@ data that could be exposed.
 This project is designed to publish aggregate dashboard metrics only. It should not publish prompts, raw JSONL lines,
 API keys, bearer tokens, private keys, local file paths, command history, or real TRMNL webhook URLs.
 
-The optional Codex banked-reset expiry lookup is disabled by default. If enabled, it uses an auth token in memory for one
-request to an undocumented endpoint and should be treated as best-effort, user-opt-in behavior.
+The collector reaches no undocumented endpoints. The Codex path uses only the supported `codex app-server` JSON-RPC
+methods, so no Codex auth token ever leaves the app-server process.
 
 The optional Claude OAuth paths are also disabled by default. When enabled, the collector reads Claude Code's stored
 credential from the operating-system credential store, holds the access token in memory, and sends it only to

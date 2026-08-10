@@ -63,7 +63,7 @@ def compact_feed(feed: dict[str, Any]) -> dict[str, Any]:
 
     if feed.get("kind") == "codex":
         credits = feed.get("credits") if isinstance(feed.get("credits"), dict) else {}
-        compact["credits"] = pick(credits, ("has_credits", "balance", "banked_reset_summary"))
+        compact["credits"] = pick(credits, ("has_credits", "balance"))
         account_usage = feed.get("account_usage") if isinstance(feed.get("account_usage"), dict) else {}
         compact["account_usage"] = pick(account_usage, ("lifetime", "peak_day", "current_streak", "longest_streak"))
     else:
