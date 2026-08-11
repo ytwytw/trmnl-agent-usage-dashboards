@@ -268,6 +268,11 @@ Use templates/agent-usage-dashboard.liquid when your renderer and device preserv
 </style>
 
 {% assign s = source_1 %}
+{% comment %}Only surface purchased credits when there is a balance to report.{% endcomment %}
+{% assign credit_balance = s.credits.balance | plus: 0 %}
+{% assign show_credits = false %}
+{% if s.credits.has_credits == 'yes' %}{% assign show_credits = true %}{% endif %}
+{% if credit_balance > 0 %}{% assign show_credits = true %}{% endif %}
 <div class="agent-usage-screen">
   <header class="top">
     <div class="title">{{ s.title }}</div>
@@ -329,11 +334,11 @@ Use templates/agent-usage-dashboard.liquid when your renderer and device preserv
 
       <div class="panel">
         {% if s.kind == 'codex' %}
-          <div class="label">Codex limits / credits</div>
+          <div class="label">Codex limits</div>
           <div class="status-list">
             <div class="status-row"><div class="status-key">{% if s.limits.primary.label == 'Weekly all' %}Week{% else %}{{ s.limits.primary.label }}{% endif %} reset</div><div class="status-val">{{ s.limits.primary.reset_full }}</div></div>
             <div class="status-row"><div class="status-key">{% if s.limits.weekly.label == 'Weekly all' %}Week{% else %}{{ s.limits.weekly.label }}{% endif %} reset</div><div class="status-val">{{ s.limits.weekly.reset_full }}</div></div>
-            <div class="status-row"><div class="status-key">Credits</div><div class="status-val">{{ s.credits.has_credits }} / {{ s.credits.balance }}</div></div>
+            {% if show_credits %}<div class="status-row"><div class="status-key">Credits</div><div class="status-val">{{ s.credits.balance }}</div></div>{% endif %}
             {% if s.account_usage.current_streak %}<div class="status-row"><div class="status-key">Streak</div><div class="status-val">{{ s.account_usage.current_streak }}d &middot; peak {{ s.account_usage.peak_day }}</div></div>{% endif %}
           </div>
         {% else %}
