@@ -1679,27 +1679,55 @@ def codex_limit_label(item: dict[str, Any] | None, fallback: str) -> str:
     return str(item.get("limit_id") or fallback).replace("codex_", "")[:18]
 
 
+def codex_limit_is_five_hour(item: dict[str, Any] | None) -> bool:
+    if not isinstance(item, dict):
+        return False
+    try:
+        return int(item.get("window_minutes") or 0) == CODEX_FIVE_HOUR_WINDOW_MINUTES
+    except (TypeError, ValueError):
+        return False
+
+
+def codex_limit_slot_order(classified: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Rank the classified Codex windows for the two dashboard slots.
+
+    The main ``codex`` limit outranks a scoped bucket such as
+    GPT-5.3-Codex-Spark, and within one limit id a five-hour window outranks a
+    weekly one. Both halves of that rule matter. Ranking on the window alone is
+    the 2026-08 regression this guards against: once the Spark bucket grew a
+    five-hour window of its own, that scoped window took the left slot and was
+    drawn with the hardcoded "5h" label, so the screen showed Spark's five-hour
+    usage as if it were the main Codex five-hour limit.
+    """
+    rate_limits = classified or {}
+    ranked: list[dict[str, Any]] = []
+    for item in (rate_limits.get("primary"), rate_limits.get("secondary"), rate_limits.get("extra")):
+        if isinstance(item, dict) and not any(item is seen for seen in ranked):
+            ranked.append(item)
+    ranked.sort(
+        key=lambda item: (
+            0 if str(item.get("limit_id") or "") == "codex" else 1,
+            0 if codex_limit_is_five_hour(item) else 1,
+        )
+    )
+    return ranked
+
+
 def codex_dashboard_limit_cards(
     classified: dict[str, Any] | None,
     tz: ZoneInfo,
     now: datetime,
-) -> dict[str, dict[str, Any]]:
-    rate_limits = classified or {}
-    five_hour = rate_limits.get("primary")
-    weekly = rate_limits.get("secondary")
-    extra = rate_limits.get("extra")
-    if isinstance(five_hour, dict):
-        left_item, left_label, left_window = five_hour, "5h", "5h"
-        right_item, right_label, right_window = weekly, codex_limit_label(weekly, "Weekly all"), "7d"
-    elif isinstance(weekly, dict):
-        left_item, left_label, left_window = weekly, codex_limit_label(weekly, "Weekly all"), "7d"
-        right_item, right_label, right_window = extra, codex_limit_label(extra, "Other limit"), "7d"
-    else:
-        left_item, left_label, left_window = None, "5h", "5h"
-        right_item, right_label, right_window = extra, codex_limit_label(extra, "Weekly all"), "7d"
+) -> dict[str, dict[str, Any] | None]:
+    ranked = codex_limit_slot_order(classified)
+    left_item = ranked[0] if len(ranked) > 0 else None
+    right_item = ranked[1] if len(ranked) > 1 else None
+    spare_item = ranked[2] if len(ranked) > 2 else None
     return {
-        "primary": limit_card({"item": left_item}, "item", left_label, tz, left_window, now),
-        "weekly": limit_card({"item": right_item}, "item", right_label, tz, right_window, now),
+        "primary": limit_card({"item": left_item}, "item", codex_limit_label(left_item, "5h"), tz, "5h", now),
+        "weekly": limit_card({"item": right_item}, "item", codex_limit_label(right_item, "Weekly all"), tz, "7d", now),
+        "extra": limit_card({"item": spare_item}, "item", codex_limit_label(spare_item, "Other limit"), tz, "7d", now)
+        if spare_item is not None
+        else None,
     }
 
 

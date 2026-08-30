@@ -25,6 +25,14 @@
       "label": "Spark",
       "used": "8%",
       "used_percent": 8,
+      "window": "5h",
+      "reset": "11:00",
+      "reset_full": "2026-07-13 11:00"
+    },
+    "extra": {
+      "label": "Spark",
+      "used": "12%",
+      "used_percent": 12,
       "window": "7d",
       "reset": "Jul 13 15:00",
       "reset_full": "2026-07-13 15:00"

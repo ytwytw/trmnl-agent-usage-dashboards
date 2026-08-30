@@ -1460,6 +1460,113 @@ class CollectorHelperTests(unittest.TestCase):
         self.assertEqual(cards["weekly"]["window"], "7d")
         self.assertEqual(cards["weekly"]["used"], "45%")
 
+    def test_codex_scoped_five_hour_never_takes_the_main_five_hour_slot(self) -> None:
+        # 2026-08 live shape: the main `codex` limit reports only a weekly
+        # window, and the scoped Spark bucket has grown a five-hour window of
+        # its own. Ranking on the window alone hands that scoped window the
+        # left slot under the hardcoded "5h" label, so the screen presents
+        # Spark's five-hour usage as the main Codex five-hour limit. The main
+        # limit must own the left slot whenever it reports any window.
+        normalized = collector.normalize_codex_rate_limit_response(
+            {
+                "rateLimits": {
+                    "limitId": "codex",
+                    "primary": {"usedPercent": 1, "windowDurationMins": 10080, "resetsAt": 1788643382},
+                    "secondary": None,
+                    "planType": "pro",
+                },
+                "rateLimitsByLimitId": {
+                    "codex_bengalfox": {
+                        "limitId": "codex_bengalfox",
+                        "limitName": "GPT-5.3-Codex-Spark",
+                        "primary": {"usedPercent": 4, "windowDurationMins": 300, "resetsAt": 1788071505},
+                        "secondary": {"usedPercent": 9, "windowDurationMins": 10080, "resetsAt": 1788658305},
+                        "planType": "pro",
+                    },
+                    "codex": {
+                        "limitId": "codex",
+                        "primary": {"usedPercent": 1, "windowDurationMins": 10080, "resetsAt": 1788643382},
+                        "secondary": None,
+                        "planType": "pro",
+                    },
+                },
+            }
+        )
+        cards = collector.codex_dashboard_limit_cards(
+            collector.classify_codex_rate_limit_windows(normalized),
+            ZoneInfo("UTC"),
+            datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(cards["primary"]["label"], "Weekly all")
+        self.assertEqual(cards["primary"]["window"], "7d")
+        self.assertEqual(cards["primary"]["used"], "1%")
+        self.assertEqual(cards["weekly"]["label"], "Spark")
+        self.assertEqual(cards["weekly"]["window"], "5h")
+        self.assertEqual(cards["weekly"]["used"], "4%")
+
+    def test_codex_third_window_is_published_as_an_extra_card(self) -> None:
+        # The scoped weekly window used to be classified and then dropped,
+        # because only two slots were ever rendered.
+        normalized = collector.normalize_codex_rate_limit_response(
+            {
+                "rateLimitsByLimitId": {
+                    "codex": {
+                        "limitId": "codex",
+                        "primary": {"usedPercent": 1, "windowDurationMins": 10080, "resetsAt": 1788643382},
+                        "secondary": None,
+                        "planType": "pro",
+                    },
+                    "codex_bengalfox": {
+                        "limitId": "codex_bengalfox",
+                        "limitName": "GPT-5.3-Codex-Spark",
+                        "primary": {"usedPercent": 4, "windowDurationMins": 300, "resetsAt": 1788071505},
+                        "secondary": {"usedPercent": 9, "windowDurationMins": 10080, "resetsAt": 1788658305},
+                        "planType": "pro",
+                    },
+                },
+            }
+        )
+        cards = collector.codex_dashboard_limit_cards(
+            collector.classify_codex_rate_limit_windows(normalized),
+            ZoneInfo("UTC"),
+            datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(cards["extra"]["label"], "Spark")
+        self.assertEqual(cards["extra"]["window"], "7d")
+        self.assertEqual(cards["extra"]["used"], "9%")
+
+    def test_codex_two_windows_leave_the_extra_card_absent(self) -> None:
+        normalized = collector.normalize_codex_rate_limit_response(
+            {
+                "rateLimits": {
+                    "limitId": "codex",
+                    "primary": {"usedPercent": 8, "windowDurationMins": 300, "resetsAt": 1784990000},
+                    "secondary": {"usedPercent": 45, "windowDurationMins": 10080, "resetsAt": 1785000000},
+                    "planType": "pro",
+                }
+            }
+        )
+        cards = collector.codex_dashboard_limit_cards(
+            collector.classify_codex_rate_limit_windows(normalized),
+            ZoneInfo("UTC"),
+            datetime(2026, 7, 30, 12, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(cards["primary"]["label"], "5h")
+        self.assertEqual(cards["weekly"]["label"], "Weekly all")
+        self.assertIsNone(cards["extra"])
+
+    def test_codex_no_rate_limits_still_renders_both_cards(self) -> None:
+        cards = collector.codex_dashboard_limit_cards(
+            None,
+            ZoneInfo("UTC"),
+            datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(cards["primary"]["label"], "5h")
+        self.assertEqual(cards["primary"]["used"], "n/a")
+        self.assertEqual(cards["weekly"]["label"], "Weekly all")
+        self.assertEqual(cards["weekly"]["used"], "n/a")
+        self.assertIsNone(cards["extra"])
+
     def test_codex_account_usage_normalizes_lifetime_and_daily_rows(self) -> None:
         usage = collector.normalize_codex_account_usage(
             {

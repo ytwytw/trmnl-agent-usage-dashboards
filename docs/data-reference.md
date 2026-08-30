@@ -88,10 +88,15 @@ The primary source is the supported Codex app-server account/rate-limit method. 
 - 300 minutes is shown as the 5-hour window.
 - 10080 minutes is shown as the weekly window.
 
-The collector does not assume that app-server `primary` and `secondary` positions correspond to those labels. When the
-response contains multiple named buckets, the general Codex bucket is preferred and another named bucket such as
-`Spark` can occupy the second dashboard slot. If the response does not expose a 5-hour bucket, `Weekly all` is promoted
-to the first slot; weekly usage is never relabeled as a 5-hour percentage.
+The collector does not assume that app-server `primary` and `secondary` positions correspond to those labels, and it
+does not rank buckets by window alone. The two dashboard slots are filled in a fixed order: the general `codex` bucket
+outranks any named bucket such as `Spark`, and within one bucket the 5-hour window outranks the weekly one. A scoped
+5-hour window therefore never displaces the general bucket from the first slot, and it never carries the bare `5h`
+label that belongs to the general 5-hour limit. If the general bucket exposes no 5-hour window, `Weekly all` occupies
+the first slot and the named bucket follows; weekly usage is never relabeled as a 5-hour percentage.
+
+A third classified window is published as `limits.extra` and drawn as one more row in the full-screen `Codex limits`
+panel. It is `null` when the response carries only two windows.
 
 OpenAI retired banked rate-limit resets, so the collector no longer reads, derives, or publishes them. The
 `rateLimitResetCredits` object is ignored even when the app-server still returns it, and `credits` now carries only

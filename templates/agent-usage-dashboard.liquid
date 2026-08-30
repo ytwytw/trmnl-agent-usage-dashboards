@@ -333,6 +333,7 @@
           <div class="status-list">
             <div class="status-row"><div class="status-key">{% if s.limits.primary.label == 'Weekly all' %}Week{% else %}{{ s.limits.primary.label }}{% endif %} reset</div><div class="status-val">{{ s.limits.primary.reset_full }}</div></div>
             <div class="status-row"><div class="status-key">{% if s.limits.weekly.label == 'Weekly all' %}Week{% else %}{{ s.limits.weekly.label }}{% endif %} reset</div><div class="status-val">{{ s.limits.weekly.reset_full }}</div></div>
+            {% if s.limits.extra %}<div class="status-row"><div class="status-key">{% if s.limits.extra.label == 'Weekly all' %}Week{% else %}{{ s.limits.extra.label }}{% endif %} {{ s.limits.extra.window }}</div><div class="status-val">{{ s.limits.extra.used }} &middot; reset {{ s.limits.extra.reset }}</div></div>{% endif %}
             {% if show_credits %}<div class="status-row"><div class="status-key">Credits</div><div class="status-val">{{ s.credits.balance }}</div></div>{% endif %}
             {% if s.account_usage.current_streak %}<div class="status-row"><div class="status-key">Streak</div><div class="status-val">{{ s.account_usage.current_streak }}d &middot; peak {{ s.account_usage.peak_day }}</div></div>{% endif %}
           </div>
