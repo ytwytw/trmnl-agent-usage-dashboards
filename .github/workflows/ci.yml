@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
 
     steps:
       - uses: actions/checkout@v7
@@ -20,13 +20,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
-        run: python -m pip install -e .
+        run: python -m pip install -e '.[test]'
       - name: Unit tests
         run: python -m unittest discover -s tests
       - name: Compile Python
         run: python -m py_compile trmnl_agent_usage/*.py scripts/audit_public_repo.py tests/*.py
       - name: Validate shell wrapper
-        run: sh -n scripts/claude_statusline_capture_wrapper.sh
+        run: for script in scripts/*.sh; do sh -n "$script"; done
       - name: Validate examples
         run: |
           python -m json.tool examples/codex.sample.json >/dev/null

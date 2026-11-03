@@ -38,10 +38,15 @@
   }
   .agent-usage-screen .limits {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 10px;
     min-height: 0;
   }
+  .agent-usage-screen .limits--3 .limit-label { font-size: 12px; }
+  .agent-usage-screen .limits--3 .limit-used { font-size: 26px; }
+  .agent-usage-screen .limits--3 .limit-reset { font-size: 11px; }
+  .agent-usage-screen .limits--3 .limit-line { gap: 5px; }
   .agent-usage-screen .limit {
     min-width: 0;
     border-top: 3px solid #000;
@@ -87,7 +92,7 @@
   }
   .agent-usage-screen .fill {
     height: 100%;
-    min-width: 2px;
+    min-width: 0;
     background: #0000ff;
   }
   .agent-usage-screen .main {
@@ -263,6 +268,15 @@
 </style>
 
 {% assign s = source_1 %}
+{%- capture visible_limit_keys -%}
+  {%- if s.limits.primary.used and s.limits.primary.used != 'n/a' -%},primary{%- endif -%}
+  {%- unless s.limits.primary.window == '7d' and s.limits.primary.used and s.limits.primary.used != 'n/a' -%}
+    {%- if s.limits.weekly.used and s.limits.weekly.used != 'n/a' -%},weekly{%- endif -%}
+  {%- endunless -%}
+  {%- if s.kind == 'claude' and s.limits.scoped.used and s.limits.scoped.used != 'n/a' -%},scoped{%- endif -%}
+{%- endcapture -%}
+{% assign visible_limit_keys = visible_limit_keys | remove_first: ',' | split: ',' %}
+
 {% comment %}Only surface purchased credits when there is a balance to report.{% endcomment %}
 {% assign credit_balance = s.credits.balance | plus: 0 %}
 {% assign show_credits = false %}
@@ -283,23 +297,20 @@
       </div>
     </section>
   {% else %}
-    <section class="limits">
-      <div class="limit">
-        <div class="limit-line">
-          <div class="limit-label">{{ s.limits.primary.label }}</div>
-          <div class="limit-used">{{ s.limits.primary.used }}</div>
-          <div class="limit-reset">{{ s.limits.primary.window }} reset {{ s.limits.primary.reset }}</div>
+    <section class="limits limits--{{ visible_limit_keys.size }}">
+      {% for limit_key in visible_limit_keys %}
+        {% assign quota = s.limits[limit_key] %}
+        <div class="limit">
+          <div class="limit-line">
+            <div class="limit-label">{{ quota.label }}</div>
+            <div class="limit-used">{{ quota.used }}</div>
+            <div class="limit-reset">{{ quota.window }} reset {{ quota.reset }}</div>
+          </div>
+          <div class="bar"><div class="fill" style="width: {{ quota.used_percent }}%;"></div></div>
         </div>
-        {% if s.limits.primary.used != 'n/a' %}<div class="bar"><div class="fill" style="width: {{ s.limits.primary.used_percent }}%;"></div></div>{% else %}<div class="bar bar-empty"></div>{% endif %}
-      </div>
-      <div class="limit">
-        <div class="limit-line">
-          <div class="limit-label">{{ s.limits.weekly.label }}</div>
-          <div class="limit-used">{{ s.limits.weekly.used }}</div>
-          <div class="limit-reset">{{ s.limits.weekly.window }} reset {{ s.limits.weekly.reset }}</div>
-        </div>
-        {% if s.limits.weekly.used != 'n/a' %}<div class="bar"><div class="fill" style="width: {{ s.limits.weekly.used_percent }}%;"></div></div>{% else %}<div class="bar bar-empty"></div>{% endif %}
-      </div>
+      {% else %}
+        <div class="limit"><div class="limit-label">Limits unavailable</div><div class="bar bar-empty"></div></div>
+      {% endfor %}
     </section>
 
     <section class="main">
@@ -331,9 +342,13 @@
         {% if s.kind == 'codex' %}
           <div class="label">Codex limits</div>
           <div class="status-list">
+            {% if s.limits.primary.used and s.limits.primary.used != 'n/a' %}
             <div class="status-row"><div class="status-key">{% if s.limits.primary.label == 'Weekly all' %}Week{% else %}{{ s.limits.primary.label }}{% endif %} reset</div><div class="status-val">{{ s.limits.primary.reset_full }}</div></div>
+            {% endif %}
+            {% if s.limits.weekly.used and s.limits.weekly.used != 'n/a' %}
             <div class="status-row"><div class="status-key">{% if s.limits.weekly.label == 'Weekly all' %}Week{% else %}{{ s.limits.weekly.label }}{% endif %} reset</div><div class="status-val">{{ s.limits.weekly.reset_full }}</div></div>
-            {% if s.limits.extra %}<div class="status-row"><div class="status-key">{% if s.limits.extra.label == 'Weekly all' %}Week{% else %}{{ s.limits.extra.label }}{% endif %} {{ s.limits.extra.window }}</div><div class="status-val">{{ s.limits.extra.used }} &middot; reset {{ s.limits.extra.reset }}</div></div>{% endif %}
+            {% endif %}
+            {% if s.limits.extra %}<div class="status-row"><div class="status-key">{% if s.limits.extra.label == 'Weekly all' %}Week{% else %}{{ s.limits.extra.label }}{% endif %} {{ s.limits.extra.window }}</div><div class="status-val">{{ s.limits.extra.used }} &middot; {{ s.limits.extra.reset }}</div></div>{% endif %}
             {% if show_credits %}<div class="status-row"><div class="status-key">Credits</div><div class="status-val">{{ s.credits.balance }}</div></div>{% endif %}
             {% if s.account_usage.current_streak %}<div class="status-row"><div class="status-key">Streak</div><div class="status-val">{{ s.account_usage.current_streak }}d &middot; peak {{ s.account_usage.peak_day }}</div></div>{% endif %}
           </div>
@@ -376,8 +391,8 @@
     </section>
 
   <footer class="foot">
-      <div class="foot-left">{{ s.source }}</div>
-      <div class="foot-right">sess {{ s.sessions.today }}/{{ s.sessions.week }}/{{ s.sessions.all }}{% if s.kind == 'claude' and s.statusline and s.statusline.captured_age %} &middot; line {{ s.statusline.captured_age }}{% endif %}</div>
+      <div class="foot-left">{% if s.runtime %}{{ s.runtime }} &middot; local last {{ s.local_latest }}{% else %}{{ s.source }}{% endif %}</div>
+      <div class="foot-right">sess {{ s.sessions.today }}/{{ s.sessions.week }}/{{ s.sessions.all }}{% if s.kind == 'claude' and s.statusline and s.statusline.captured_age %} &middot; limits {{ s.statusline.captured_age }}{% endif %}</div>
     </footer>
   {% endif %}
 </div>

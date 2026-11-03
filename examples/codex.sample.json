@@ -6,6 +6,8 @@
   "local_time": "14:30",
   "local_datetime": "2026-07-06 14:30",
   "refresh": "15m",
+  "runtime": "Codex 0.100.0",
+  "local_latest": "2026-07-06",
   "cost_basis": "Token Cost*",
   "source": "ccusage + Codex account + local sessions",
   "errors": [],
@@ -139,9 +141,9 @@
   },
   "activity_scope": "Account activity",
   "models": [
-    { "name": "gpt-5.6-sol", "tokens": "4.00M", "raw_tokens": 4000000, "pct": 57 },
-    { "name": "gpt-5.6-terra", "tokens": "2.00M", "raw_tokens": 2000000, "pct": 29 },
-    { "name": "gpt-5.5", "tokens": "1.00M", "raw_tokens": 1000000, "pct": 14 }
+    { "name": "gpt-6.1-sol", "tokens": "4.00M", "raw_tokens": 4000000, "pct": 57 },
+    { "name": "gpt-6-astra", "tokens": "2.00M", "raw_tokens": 2000000, "pct": 29 },
+    { "name": "gpt-6.1-terra", "tokens": "1.00M", "raw_tokens": 1000000, "pct": 14 }
   ],
   "daily_bars": [
     { "day": "Mon", "tokens": "4.00M", "pct": 100 },

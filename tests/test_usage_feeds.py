@@ -9,6 +9,7 @@ import re
 import stat
 import struct
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -35,6 +36,40 @@ DASHBOARD_TEMPLATE_NAMES = (
 
 
 class CollectorHelperTests(unittest.TestCase):
+    def test_runtime_version_drops_untrusted_output_and_handles_missing_cli(self) -> None:
+        for output, expected in (("codex-cli 0.166.0\n", "0.166.0"), ("2.1.316 (Claude Code)\n", "2.1.316"), ("/private/secret\n", "n/a")):
+            with self.subTest(output=output), mock.patch.object(
+                collector.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, output, "")
+            ):
+                self.assertEqual(collector.runtime_version("agent"), expected)
+        self.assertEqual(collector.runtime_version(None), "n/a")
+        with mock.patch.object(collector.subprocess, "run", side_effect=FileNotFoundError):
+            self.assertEqual(collector.runtime_version("missing"), "n/a")
+
+    def test_codex_rpc_handshake_and_batched_pipe_responses(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            binary = Path(temp) / "codex"
+            binary.write_text(
+                f"#!{sys.executable}\n"
+                "import json, os, sys\n"
+                "assert json.loads(sys.stdin.readline())['method'] == 'initialize'\n"
+                "print(json.dumps({'id':'__init__','result':{}}), flush=True)\n"
+                "assert json.loads(sys.stdin.readline())['method'] == 'initialized'\n"
+                "requests = [json.loads(sys.stdin.readline()) for _ in range(2)]\n"
+                "reply = b'not json\\n' + b''.join((json.dumps({'id':r['id'],'result':{'ok':True}})+'\\n').encode() for r in requests)\n"
+                "os.write(1, reply[:8])\n"
+                "os.write(1, reply[8:])\n"
+                "sys.stdin.read()\n",
+                encoding="utf-8",
+            )
+            binary.chmod(0o700)
+            responses = collector.codex_app_server_rpc(str(binary), [
+                {"id":"limits", "method":"account/rateLimits/read"},
+                {"id":"usage", "method":"account/usage/read"},
+            ], timeout=3)
+        self.assertEqual(set(responses), {"limits", "usage"})
+        self.assertTrue(responses["limits"]["result"]["ok"])
+
     def test_short_number(self) -> None:
         self.assertEqual(collector.short_number(999), "999")
         self.assertEqual(collector.short_number(12_345), "12.3K")
@@ -1859,6 +1894,14 @@ class FeedSanitizationTests(unittest.TestCase):
 
 
 class WebhookPayloadTests(unittest.TestCase):
+    def test_runtime_and_activity_metadata_survive_compaction(self) -> None:
+        feed = {"kind":"claude", "runtime":"Claude Code 2.1.100", "local_latest":"2026-07-06",
+                "statusline":{"captured_age":"live", "private":"drop"}}
+        compact = push.compact_feed(feed)
+        self.assertEqual(compact["runtime"], feed["runtime"])
+        self.assertEqual(compact["local_latest"], feed["local_latest"])
+        self.assertEqual(compact["statusline"], {"captured_age":"live"})
+
     def test_sample_payloads_fit_trmnl_webhook_free_tier_limit(self) -> None:
         repo = Path(__file__).resolve().parents[1]
         for name in ("codex", "claude"):
@@ -1976,6 +2019,7 @@ class WebhookPayloadTests(unittest.TestCase):
             self.assertIn("bar-empty", template, template_name)
             self.assertIn("s.limits.primary.used != 'n/a'", template, template_name)
             self.assertIn("s.limits.weekly.used != 'n/a'", template, template_name)
+            self.assertIn("visible_limit_keys", template, template_name)
 
     def test_templates_render_claude_scoped_limit(self) -> None:
         repo = Path(__file__).resolve().parents[1]
@@ -2078,6 +2122,28 @@ class DemoAssetTests(unittest.TestCase):
 
 
 class StatuslineWrapperTests(unittest.TestCase):
+    def test_scheduled_runner_delivers_error_feed_and_preserves_failure_status(self) -> None:
+        runner = Path(__file__).resolve().parents[1] / "scripts" / "run_usage_feeds.sh"
+        for collect_status, push_status, expected in ((0,0,0), (1,0,1), (0,2,2), (1,2,2)):
+            with self.subTest(collect=collect_status, push=push_status), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                fake_python = root / "python"
+                calls = root / "calls"
+                fake_python.write_text(
+                    '#!/bin/sh\nprintf "%s\\n" "$2" >> "$TRMNL_TEST_CALLS"\n'
+                    'case "$2" in *collect_usage_feeds) exit "$TRMNL_TEST_COLLECT_STATUS" ;; '
+                    '*push_usage_feeds) exit "$TRMNL_TEST_PUSH_STATUS" ;; esac\n',
+                    encoding="utf-8",
+                )
+                fake_python.chmod(0o700)
+                env = {**os.environ, "PYTHON":str(fake_python), "TRMNL_TEST_CALLS":str(calls),
+                       "TRMNL_TEST_COLLECT_STATUS":str(collect_status), "TRMNL_TEST_PUSH_STATUS":str(push_status)}
+                result = subprocess.run(["sh",str(runner)], env=env, cwd=temp, timeout=5)
+                self.assertEqual(result.returncode, expected)
+                self.assertEqual(calls.read_text().splitlines(), [
+                    "trmnl_agent_usage.collect_usage_feeds", "trmnl_agent_usage.push_usage_feeds",
+                ])
+
     def test_wrapper_captures_cache_and_preserves_delegate_stdin(self) -> None:
         repo = Path(__file__).resolve().parents[1]
         wrapper = repo / "scripts" / "claude_statusline_capture_wrapper.sh"

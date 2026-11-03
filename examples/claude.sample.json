@@ -6,6 +6,8 @@
   "local_time": "14:30",
   "local_datetime": "2026-07-06 14:30",
   "refresh": "15m",
+  "runtime": "Claude Code 2.1.100",
+  "local_latest": "2026-07-06",
   "cost_basis": "Token Cost*",
   "source": "ccusage + Claude OAuth usage + local stats",
   "errors": [],

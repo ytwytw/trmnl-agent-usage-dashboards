@@ -5,33 +5,51 @@
   .agent-usage-screen .foot { border-top: 2px solid #000; border-bottom: 0; font-size: 12px; }
   .agent-usage-screen .title { font-size: 26px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .agent-usage-screen .meta { font-size: 12px; white-space: nowrap; text-align: right; }
-  .agent-usage-screen .limits, .agent-usage-screen .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .agent-usage-screen .limits { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+  .agent-usage-screen .metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
   .agent-usage-screen .card { min-width: 0; border-top: 2px solid #000; padding-top: 4px; overflow: hidden; }
   .agent-usage-screen .label { font-size: 11px; line-height: 1; font-weight: 900; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .agent-usage-screen .value { margin-top: 2px; font-size: 24px; line-height: .95; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agent-usage-screen .value { margin-top: 2px; font-size: 22px; line-height: .95; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .agent-usage-screen .sub { margin-top: 2px; font-size: 11px; line-height: 1; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .agent-usage-screen .bar { height: 9px; margin-top: 4px; border: 2px solid #000; background: #fff; }
+  .agent-usage-screen .bar { height: 6px; margin-top: 2px; border: 2px solid #000; background: #fff; }
   .agent-usage-screen .fill { height: 100%; background: repeating-linear-gradient(90deg, #000 0 2px, #fff 2px 4px); }
 </style>
 
 {% assign s = source_1 %}
+{%- capture visible_limit_keys -%}
+  {%- if s.limits.primary.used and s.limits.primary.used != 'n/a' -%},primary{%- endif -%}
+  {%- unless s.limits.primary.window == '7d' and s.limits.primary.used and s.limits.primary.used != 'n/a' -%}
+    {%- if s.limits.weekly.used and s.limits.weekly.used != 'n/a' -%},weekly{%- endif -%}
+  {%- endunless -%}
+  {%- if s.kind == 'claude' and s.limits.scoped.used and s.limits.scoped.used != 'n/a' -%},scoped{%- endif -%}
+{%- endcapture -%}
+{% assign visible_limit_keys = visible_limit_keys | remove_first: ',' | split: ',' %}
+
 <div class="agent-usage-screen">
   <header class="top">
     <div class="title">{{ s.title }}</div>
     <div class="meta">{{ s.local_datetime }} · {{ s.cost_basis }}</div>
   </header>
 
-  <section class="limits">
-    <div class="card">
-      <div class="label">{{ s.limits.primary.label }}</div>
-      <div class="value">{{ s.limits.primary.used }}</div>
-      <div class="sub">reset {{ s.limits.primary.reset }}</div>
-    </div>
-    <div class="card">
-      <div class="label">{{ s.limits.weekly.label }}</div>
-      <div class="value">{{ s.limits.weekly.used }}</div>
-      <div class="sub">reset {{ s.limits.weekly.reset }}</div>
-    </div>
+  <section class="limits limits--{{ visible_limit_keys.size }}">
+    {% for limit_key in visible_limit_keys %}
+      {% assign quota = s.limits[limit_key] %}
+      <div class="card">
+        <div class="label">{{ quota.label }}</div>
+        <div class="value">{{ quota.used }}</div>
+        <div class="sub">reset {{ quota.reset }}</div>
+        <div class="bar"><div class="fill" style="width: {{ quota.used_percent }}%;"></div></div>
+      </div>
+    {% else %}
+      <div class="card"><div class="label">Limits unavailable</div><div class="bar bar-empty"></div></div>
+    {% endfor %}
+  </section>
+
+  <section class="metrics">
+    <div class="card"><div class="label">Today</div><div class="value">{{ s.usage.today.total }}</div><div class="sub">Token Cost* {{ s.usage.today.cost }}</div></div>
+    <div class="card"><div class="label">Local 7d</div><div class="value">{{ s.usage.week.total }}</div><div class="sub">Token Cost* {{ s.usage.week.cost }}</div></div>
+    <div class="card"><div class="label">Local month</div><div class="value">{{ s.usage.month.total }}</div><div class="sub">{% if s.account_usage.lifetime %}account {{ s.account_usage.lifetime }}{% else %}local all {{ s.usage.all.total }}{% endif %}</div></div>
+    <div class="card"><div class="label">Top model</div><div class="value">{{ s.models[0].tokens }}</div><div class="sub">{{ s.models[0].name }}</div></div>
     <div class="card">
       <div class="label">{{ s.usage.five_hour.label }}</div>
       <div class="value">{{ s.usage.five_hour.total }}</div>
@@ -42,13 +60,6 @@
       <div class="value">{% if s.kind == 'codex' %}{{ s.account_usage.current_streak | default: 0 }}d{% else %}{{ s.limits.scoped.used }}{% endif %}</div>
       <div class="sub">{% if s.kind == 'codex' %}peak {{ s.account_usage.peak_day | default: 'n/a' }}{% else %}reset {{ s.limits.scoped.reset }}{% endif %}</div>
     </div>
-  </section>
-
-  <section class="metrics">
-    <div class="card"><div class="label">Today</div><div class="value">{{ s.usage.today.total }}</div><div class="sub">Token Cost* {{ s.usage.today.cost }}</div></div>
-    <div class="card"><div class="label">Local 7d</div><div class="value">{{ s.usage.week.total }}</div><div class="sub">Token Cost* {{ s.usage.week.cost }}</div></div>
-    <div class="card"><div class="label">Local month</div><div class="value">{{ s.usage.month.total }}</div><div class="sub">{% if s.account_usage.lifetime %}account {{ s.account_usage.lifetime }}{% else %}local all {{ s.usage.all.total }}{% endif %}</div></div>
-    <div class="card"><div class="label">Top model</div><div class="value">{{ s.models[0].tokens }}</div><div class="sub">{{ s.models[0].name }}</div></div>
   </section>
 
   <footer class="foot">

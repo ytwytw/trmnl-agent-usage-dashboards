@@ -179,6 +179,22 @@ TRMNL documentation describes a normal 2 KB webhook limit and 12 webhook request
 check the current [Private Plugin guide](https://help.trmnl.com/en/articles/9510536-private-plugins) and
 [Webhook documentation](https://docs.trmnl.com/go/private-plugins/webhooks).
 
+For a dependency-free checkout, the bundled runner can be scheduled directly after loading the external environment:
+
+```sh
+PYTHON=/absolute/stable/path/to/python3 sh /absolute/path/to/checkout/scripts/run_usage_feeds.sh
+```
+
+On Homebrew macOS, `/opt/homebrew/bin/python3` follows the installed Python release. A virtual environment created
+against a removed Homebrew minor version can instead become a dangling link and stop every scheduled update before
+collection begins. The bundled runner uses the checkout without installing it, and pushes both feeds even when one
+provider reports an error, then returns a failure status for the scheduler. Do not put credentials in this script.
+
+macOS background jobs may also be denied access to scripts under Documents, Desktop, or Downloads by privacy
+controls, even when an interactive terminal can read them. Deploy the runtime package and runner under an unprotected
+application-data directory such as `~/Library/Application Support/trmnl-agent-usage-dashboards/runtime`, point the
+external launchd wrapper there, and verify with `launchctl kickstart` rather than only testing from a terminal.
+
 ## Refresh Model
 
 Do not use one refresh value to describe the whole system:

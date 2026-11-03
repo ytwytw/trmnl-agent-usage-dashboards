@@ -194,6 +194,22 @@ def usage_title(product: str, plan: Any, override: str | None = None) -> str:
     return f"{product} {native_plan} Usage" if native_plan else f"{product} Usage"
 
 
+def runtime_version(binary: str | None) -> str:
+    if not binary:
+        return "n/a"
+    try:
+        result = subprocess.run(
+            [binary, "--version"], check=True, capture_output=True, text=True, timeout=5,
+        )
+        # Publish only a version number, never arbitrary CLI output.
+        for word in result.stdout.split():
+            if word.count(".") >= 2 and all(part.isdigit() for part in word.split(".")):
+                return word
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return "n/a"
+
+
 def read_claude_subscription_type(claude_bin: str | None, notes: list[str]) -> str | None:
     if not claude_bin:
         notes.append("Claude Code CLI not found; subscription type unavailable")
@@ -261,7 +277,11 @@ def normalize_claude_oauth_usage(payload: dict[str, Any] | None) -> dict[str, An
     if scoped:
         normalized["scoped"] = max(
             scoped,
-            key=lambda item: (bool(item.get("active")), float(item.get("used_percentage") or 0)),
+            key=lambda item: (
+                str(item.get("label") or "").casefold() == "fable" and item.get("used_percentage") is not None,
+                bool(item.get("active")),
+                float(item.get("used_percentage") or 0),
+            ),
         )
     return normalized
 
@@ -1103,8 +1123,7 @@ def codex_app_server_rpc(codex_bin: str, requests: list[dict[str, Any]], timeout
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
-        text=True,
-        bufsize=1,
+        bufsize=0,
     )
     assert process.stdin and process.stdout
     init = {
@@ -1119,8 +1138,8 @@ def codex_app_server_rpc(codex_bin: str, requests: list[dict[str, Any]], timeout
             "capabilities": {"experimentalApi": True, "requestAttestation": False},
         },
     }
-    for request in [init, *requests]:
-        process.stdin.write(json.dumps(request, separators=(",", ":")) + "\n")
+    def send(request: dict[str, Any]) -> None:
+        process.stdin.write((json.dumps(request, separators=(",", ":")) + "\n").encode())
         process.stdin.flush()
 
     wanted = {request.get("id") for request in requests}
@@ -1128,24 +1147,39 @@ def codex_app_server_rpc(codex_bin: str, requests: list[dict[str, Any]], timeout
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ)
     deadline = time.monotonic() + timeout
+    pending = b""
     try:
+        send(init)
         while wanted - responses.keys() and time.monotonic() < deadline:
             for key, _ in selector.select(max(0.1, min(0.5, deadline - time.monotonic()))):
-                line = key.fileobj.readline()
-                if not line:
-                    continue
-                try:
-                    payload = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if payload.get("id") in wanted:
-                    responses[payload["id"]] = payload
+                chunk = os.read(key.fileobj.fileno(), 65536)
+                if not chunk:
+                    return responses
+                pending += chunk
+                while b"\n" in pending:
+                    line, pending = pending.split(b"\n", 1)
+                    try:
+                        payload = json.loads(line)
+                    except (ValueError, UnicodeError):
+                        continue
+                    if payload.get("id") == "__init__":
+                        if "error" in payload:
+                            raise RuntimeError("Codex initialization failed")
+                        send({"method": "initialized"})
+                        for request in requests:
+                            send(request)
+                    elif payload.get("id") in wanted:
+                        responses[payload["id"]] = payload
     finally:
+        selector.close()
         process.terminate()
         try:
             process.wait(timeout=2)
         except subprocess.TimeoutExpired:
             process.kill()
+            process.wait()
+        process.stdin.close()
+        process.stdout.close()
     return responses
 
 
@@ -1815,6 +1849,7 @@ def build_codex(
         "refresh": "15m",
         "cost_basis": "Token Cost*",
         "source": "ccusage + Codex account + local sessions",
+        "local_latest": max((str(row.get("date") or "") for row in rows), default="n/a"),
         "errors": errors[:3],
         "plan": str(plan or "n/a"),
         "limit_id": str((rate_limits or {}).get("limit_id") or "n/a"),
@@ -2015,6 +2050,7 @@ def build_claude(
         "refresh": "15m",
         "cost_basis": "Token Cost*",
         "source": source,
+        "local_latest": max((str(row.get("date") or "") for row in rows), default="n/a"),
         "errors": errors[:3],
         "warnings": warnings[:3],
         "plan": subscription_type or "n/a",
@@ -2168,6 +2204,8 @@ def main() -> int:
             output_dir / CLAUDE_OAUTH_REFRESH_STAMP_NAME,
         ),
     )
+    codex["runtime"] = f"Codex {runtime_version(codex_bin)}"
+    claude["runtime"] = f"Claude Code {runtime_version(claude_bin)}"
     index = {
         "ok": bool(codex.get("ok")) and bool(claude.get("ok")),
         "generated_at": datetime.now(tz).strftime("%Y-%m-%d %H:%M"),

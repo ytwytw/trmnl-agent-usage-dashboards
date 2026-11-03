@@ -87,7 +87,7 @@ git clone https://github.com/ytwytw/trmnl-agent-usage-dashboards.git
 cd trmnl-agent-usage-dashboards
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install -e .
+python -m pip install -e '.[test]'
 python -m unittest discover -s tests
 ```
 

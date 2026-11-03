@@ -25,7 +25,7 @@ def pick(source: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
 def compact_feed(feed: dict[str, Any]) -> dict[str, Any]:
     compact = pick(
         feed,
-        ("ok", "kind", "title", "local_datetime", "refresh", "cost_basis", "source", "plan", "activity_scope"),
+        ("ok", "kind", "title", "local_datetime", "refresh", "cost_basis", "source", "plan", "activity_scope", "runtime", "local_latest"),
     )
     compact["errors"] = (feed.get("errors") or [])[:1]
     compact["notes"] = (feed.get("notes") or [])[:1]
@@ -74,6 +74,8 @@ def compact_feed(feed: dict[str, Any]) -> dict[str, Any]:
         )
         auth = feed.get("auth") if isinstance(feed.get("auth"), dict) else {}
         compact["auth"] = pick(auth, ("usage",))
+        statusline = feed.get("statusline") if isinstance(feed.get("statusline"), dict) else {}
+        compact["statusline"] = pick(statusline, ("captured_age",))
     return compact
 
 

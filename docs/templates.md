@@ -12,6 +12,11 @@
 
 Codex and Claude use the same template. The feed's `kind` field selects provider-specific sections.
 
+The quota row contains only reported percentages, including a valid `0%`. A missing 5-hour quota is hidden; the
+general weekly quota fills that row by itself. Claude's reported Fable quota gets its own bar beside the other
+available windows. If no percentage is available, the row says `Limits unavailable` instead of inventing zero usage.
+Named Codex buckets remain available in the full-size detail panel when the general weekly quota owns the main row.
+
 ## Variable Wiring
 
 All shipped templates begin their data access with:
@@ -87,3 +92,7 @@ location metadata.
 
 The repository demos use the full-size color template. Use the BWR-safe template when evaluating monochrome or
 black/white/red firmware paths.
+
+Install the `test` extra to run real Liquid rendering tests for every layout. These cover a weekly-only account,
+zero-percent 5-hour usage, Claude with and without Fable, and missing quota data. Python Liquid is a test dependency;
+collection and delivery still need only the standard library.

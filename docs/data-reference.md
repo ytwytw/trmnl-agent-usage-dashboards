@@ -16,6 +16,12 @@ index.json
 Each dashboard feed contains aggregate usage, formatted display values, local timestamps, source status, and sanitized
 errors. `index.json` is a small discovery document for the two feeds.
 
+`runtime` contains the installed agent's version number, and `local_latest` is the newest date present in the local
+ccusage daily report. Full-screen templates show both in the footer. The header timestamp is the collection time;
+the latest local activity can legitimately be older, especially when usage occurred on another machine or in a
+surface that does not write local transcripts. Neither local totals nor API-equivalent costs represent account-wide
+subscription billing. Missing limit windows remain `n/a`, rather than becoming zero usage.
+
 The server allowlists `GET /codex.json`, `GET /claude.json`, `GET /index.json`, and `GET /health`. Directory listing is
 disabled. Responses use `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`.
 
@@ -81,6 +87,9 @@ export TRMNL_AGENT_USAGE_CLAUDE_TITLE="Claude Code Usage"
 
 ### Rate limits and credits
 
+The stdio connection follows `initialize` → successful reply → `initialized` → account requests. Responses are
+buffered as newline-delimited bytes, so multiple replies in one pipe read cannot strand a reply in a text buffer.
+
 The primary source is the supported Codex app-server account/rate-limit method. The collector reads the legacy
 `rateLimits` view and the current `rateLimitsByLimitId` map. Buckets are classified by native `limitId` and
 `windowDurationMins`:
@@ -89,11 +98,13 @@ The primary source is the supported Codex app-server account/rate-limit method. 
 - 10080 minutes is shown as the weekly window.
 
 The collector does not assume that app-server `primary` and `secondary` positions correspond to those labels, and it
-does not rank buckets by window alone. The two dashboard slots are filled in a fixed order: the general `codex` bucket
+does not rank buckets by window alone. The internal card slots are filled in a fixed order: the general `codex` bucket
 outranks any named bucket such as `Spark`, and within one bucket the 5-hour window outranks the weekly one. A scoped
 5-hour window therefore never displaces the general bucket from the first slot, and it never carries the bare `5h`
 label that belongs to the general 5-hour limit. If the general bucket exposes no 5-hour window, `Weekly all` occupies
-the first slot and the named bucket follows; weekly usage is never relabeled as a 5-hour percentage.
+the first slot and the named bucket follows; weekly usage is never relabeled as a 5-hour percentage. The quota row
+hides unavailable windows and shows just the general weekly bar when there is no general 5-hour quota. Named buckets
+remain in the full-size detail panel.
 
 A third classified window is published as `limits.extra` and drawn as one more row in the full-screen `Codex limits`
 panel. It is `null` when the response carries only two windows.
@@ -280,13 +291,13 @@ useful as a fallback and as a source of reset timing.
 
 ## Compatibility Baseline
 
-The collector was integration-tested on 2026-07-20 with:
+The collector has been integration-tested with:
 
 | Tool | Version |
 | --- | --- |
-| Codex CLI | `0.147.0` |
-| Claude Code | `2.1.226` |
-| `ccusage` | `20.0.19` |
+| Codex CLI | `0.166.0` |
+| Claude Code | `2.1.317` |
+| `ccusage` | `20.1.0` |
 
 Tests cover current Codex multi-bucket and account-usage responses, retired banked-reset fields staying absent,
 fork/subagent replay, Codex cached-input aliases, Claude OAuth expiry and limit shapes, per-feed exception isolation,
