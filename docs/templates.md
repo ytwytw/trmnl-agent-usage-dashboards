@@ -17,6 +17,11 @@ general weekly quota fills that row by itself. Claude's reported Fable quota get
 available windows. If no percentage is available, the row says `Limits unavailable` instead of inventing zero usage.
 Named Codex buckets remain available in the full-size detail panel when the general weekly quota owns the main row.
 
+Resets, general credit, and cloud-session credit are separate optional account fields. Each is hidden when its count
+or balance is zero or unavailable. Full-size account panels include known expiry timestamps; compact account cards
+prioritize the available counts and balances. The Fable quota remains in the quota row rather than being duplicated
+inside the Claude account panel.
+
 ## Variable Wiring
 
 All shipped templates begin their data access with:

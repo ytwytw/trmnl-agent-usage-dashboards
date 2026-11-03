@@ -109,9 +109,14 @@ remain in the full-size detail panel.
 A third classified window is published as `limits.extra` and drawn as one more row in the full-screen `Codex limits`
 panel. It is `null` when the response carries only two windows.
 
-OpenAI retired banked rate-limit resets, so the collector no longer reads, derives, or publishes them. The
-`rateLimitResetCredits` object is ignored even when the app-server still returns it, and `credits` now carries only
-`has_credits` and `balance`.
+Available banked resets come from the supported `rateLimitResetCredits` object. Its `availableCount` is authoritative;
+detail rows can be capped or unavailable. Only available, future detail expiries contribute to the displayed earliest
+expiry. A positive count without expiry details still displays the count. Zero or unavailable counts are hidden.
+The collector never consumes a reset and does not use an undocumented Codex token endpoint.
+
+Credits are shown only when a current account read reports a positive numeric balance. `has_credits: yes` alone is
+insufficient, and an old JSONL credit snapshot is not reused when the live account read fails. Counts, remaining
+balances, and optional expiry labels are the only account-inventory values sent to TRMNL; raw grant IDs are omitted.
 
 ### Account and local scope
 
@@ -131,6 +136,23 @@ The rolling 5-hour token total follows current `ccusage` semantics:
 This avoids inflated totals from summing every cumulative `last_token_usage` record.
 
 ## Claude Code
+
+### Available resets and credit balances
+
+The opt-in native OAuth usage read requests `cedar_ember=1` to include reset metadata and uses a versioned,
+native-compatible CLI User-Agent. This flag and its grant shape were verified against the installed official CLI.
+Eligible, unspent grants contribute their `resets_left` count only while their start/expiry dates are valid. Expired,
+spent, ineligible, missing, or failed inventory reads do not leave an old reset count on the dashboard. Nothing is
+redeemed or purchased by the collector.
+
+General usage credit is a positive prepaid balance, not a monthly spending allowance. When the usage response omits
+the balance, the collector reads the first-party OAuth profile and organization prepaid-credit endpoint. The profile
+stays in memory; account names, email, organization IDs, and invoice/payment metadata never enter the feed.
+
+Cloud-session credit is read separately from the usage response's `iguana_necktie` grant. Its positive
+`remaining_dollars` is shown as `Cloud credits`; `resets_at` is an expiry, not a repeating quota reset. Zero, expired,
+locked, or malformed grants are hidden. The native Claude endpoints and field names are not a public API contract
+and can change; a failed optional wallet read hides the wallet while the remaining usage feed can stay healthy.
 
 ### Live OAuth limits
 
@@ -299,9 +321,9 @@ The collector has been integration-tested with:
 | Claude Code | `2.1.317` |
 | `ccusage` | `20.1.0` |
 
-Tests cover current Codex multi-bucket and account-usage responses, retired banked-reset fields staying absent,
-fork/subagent replay, Codex cached-input aliases, Claude OAuth expiry and limit shapes, per-feed exception isolation,
-sanitized failure feeds, and stale statusline behavior.
+Tests cover Codex supported reset inventory, capped/absent detail rows, positive and zero credit balances,
+Claude grant expiry/eligibility, wallet currency units and privacy, multi-bucket/account usage, fork/subagent replay,
+per-feed exception isolation, sanitized failures, and stale statusline behavior.
 
 CLI output can change independently of this repository. When upgrading a CLI, run the complete test suite and inspect a
 sanitized live feed before updating the compatibility table.
@@ -312,3 +334,7 @@ sanitized live feed before updating the compatibility table.
 - [Claude Code authentication](https://code.claude.com/docs/en/authentication)
 - [Claude Code error reference](https://code.claude.com/docs/en/errors)
 - [ccusage guide](https://github.com/ryoppippi/ccusage/blob/main/docs/guide/index.md)
+
+- [Codex available reset inventory](https://learn.chatgpt.com/docs/app-server#6-rate-limits-chatgpt)
+- [Claude limit resets](https://support.claude.com/en/articles/17007452-what-is-a-limit-reset)
+- [Claude usage credits](https://support.claude.com/en/articles/12429409-manage-usage-credits-for-paid-claude-plans)

@@ -23,8 +23,10 @@ import urllib.error
 import urllib.request
 from collections import Counter
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, DecimalException
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 try:  # POSIX only; the claim degrades to a no-op elsewhere.
@@ -41,7 +43,7 @@ DEFAULT_CODEX_TITLE = os.environ.get("TRMNL_AGENT_USAGE_CODEX_TITLE")
 DEFAULT_CLAUDE_TITLE = os.environ.get("TRMNL_AGENT_USAGE_CLAUDE_TITLE")
 CODEX_FIVE_HOUR_WINDOW_MINUTES = 300
 CODEX_WEEKLY_WINDOW_MINUTES = 10080
-CLAUDE_OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
+CLAUDE_OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage?cedar_ember=1"
 
 
 def env_flag(name: str, default: bool = False) -> bool:
@@ -235,9 +237,98 @@ def read_claude_subscription_type(claude_bin: str | None, notes: list[str]) -> s
     return subscription_type.strip()
 
 
-def normalize_claude_oauth_usage(payload: dict[str, Any] | None) -> dict[str, Any]:
+def account_credit(value: Any, currency: str = "", scale: int = 0) -> dict[str, str]:
+    if isinstance(value, bool) or not isinstance(scale, int) or isinstance(scale, bool) or not 0 <= scale <= 6:
+        return {}
+    if not isinstance(currency, str) or (currency and (len(currency) != 3 or not currency.isascii() or not currency.isalpha())):
+        return {}
+    try:
+        balance = Decimal(str(value)) / (10 ** scale)
+        if not balance.is_finite() or balance <= 0 or balance.adjusted() > 15:
+            return {}
+    except (DecimalException, ValueError, TypeError):
+        return {}
+    prefix = "$" if currency.upper() == "USD" else (currency.upper() + " " if currency else "")
+    display = f"{prefix}{balance:,.2f}" if balance >= Decimal("0.01") else f"<{prefix}0.01"
+    return {"balance": str(balance), "display": display}
+
+
+def monetary_credit(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict) or not isinstance(value.get("currency"), str) or not value["currency"]:
+        return {}
+    return account_credit(value.get("amount_minor"), value["currency"], value.get("exponent", 2))
+
+
+def codex_reset_inventory(value: Any, now: datetime | None = None) -> dict[str, Any] | None:
+    count = value.get("availableCount") if isinstance(value, dict) else None
+    if not isinstance(count, int) or isinstance(count, bool) or count <= 0:
+        return None
+    now = now or datetime.now(timezone.utc)
+    expiries = []
+    details = value.get("credits")
+    for credit in details if isinstance(details, list) else []:
+        if not isinstance(credit, dict) or credit.get("status") != "available":
+            continue
+        expiry = parse_dt(credit.get("expiresAt"))
+        if expiry and expiry > now:
+            expiries.append(expiry)
+    # The service can cap detail rows; the supported count is authoritative.
+    return {"count": count, "expires_at": min(expiries).isoformat() if expiries else None}
+
+
+def claude_reset_inventory(value: Any, now: datetime | None = None) -> dict[str, Any] | None:
+    if not isinstance(value, dict) or value.get("eligible") is not True:
+        return None
+    now = now or datetime.now(timezone.utc)
+    count = 0
+    expiries = []
+    grants = value.get("grants")
+    for grant in grants if isinstance(grants, list) else []:
+        if not isinstance(grant, dict) or grant.get("status") not in (None, "available"):
+            continue
+        left, total = grant.get("resets_left"), grant.get("resets_total")
+        if any(not isinstance(n, int) or isinstance(n, bool) or n <= 0 for n in (left, total)):
+            continue
+        expiry = parse_dt(grant.get("ends_at"))
+        start = parse_dt(grant.get("starts_at"))
+        if not expiry or expiry <= now or (start and start > now):
+            continue
+        count += min(left, total)
+        expiries.append(expiry)
+    return {"count": count, "expires_at": min(expiries).isoformat()} if count else None
+
+
+def reset_card(inventory: dict[str, Any] | None, tz: ZoneInfo) -> dict[str, Any] | None:
+    if not inventory:
+        return None
+    expiry = parse_dt(inventory.get("expires_at"))
+    return {"count": inventory["count"], "expires": expiry.astimezone(tz).strftime("%m-%d %H:%M") if expiry else None}
+
+
+def read_claude_prepaid_credit(headers: dict[str, str], notes: list[str]) -> dict[str, str]:
+    try:
+        request = urllib.request.Request("https://api.anthropic.com/api/oauth/profile", headers=headers)
+        with urllib.request.urlopen(request, timeout=10) as response:
+            profile = json.loads(response.read(50000))
+        org_id = UUID(str((profile.get("organization") or {}).get("uuid")))
+        request = urllib.request.Request(
+            f"https://api.anthropic.com/api/oauth/organizations/{org_id}/prepaid/credits", headers=headers,
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            payload = json.loads(response.read(50000))
+        if isinstance(payload.get("balance"), dict):
+            return monetary_credit(payload["balance"])
+        # The legacy amount is in USD cents; never confuse spend limits with a balance.
+        return account_credit(payload.get("amount"), payload.get("currency") or "USD", 2)
+    except Exception as exc:  # noqa: BLE001 - optional wallet read; never expose the org or token.
+        notes.append(f"Claude prepaid credits unavailable: {safe_exception(exc)}")
+        return {}
+
+
+def normalize_claude_oauth_usage(payload: dict[str, Any] | None, now: datetime | None = None) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return {}
+    now = now or datetime.now(timezone.utc)
 
     normalized: dict[str, Any] = {}
     for source_key, dest_key in (("five_hour", "five_hour"), ("seven_day", "weekly")):
@@ -283,6 +374,17 @@ def normalize_claude_oauth_usage(payload: dict[str, Any] | None) -> dict[str, An
                 float(item.get("used_percentage") or 0),
             ),
         )
+    normalized["resets"] = claude_reset_inventory(payload.get("cedar_ember"), now)
+    spend = payload.get("spend")
+    credits = monetary_credit(spend.get("balance")) if isinstance(spend, dict) else {}
+    cloud = payload.get("iguana_necktie")
+    if isinstance(cloud, dict):
+        expiry = parse_dt(cloud.get("resets_at"))
+        balance = account_credit(cloud.get("remaining_dollars"), "USD")
+        expiry_known = cloud.get("resets_at") is None or expiry is not None
+        if balance and expiry_known and not cloud.get("locked_reason") and (not expiry or expiry > now):
+            credits["cloud"] = {**balance, "expires_at": expiry.isoformat() if expiry else None}
+    normalized["credits"] = credits
     return normalized
 
 
@@ -633,6 +735,7 @@ def read_claude_oauth_usage(
     refresh_skew_minutes: int = DEFAULT_CLAUDE_OAUTH_REFRESH_SKEW_MINUTES,
     refresh_cooldown_minutes: int = DEFAULT_CLAUDE_OAUTH_REFRESH_COOLDOWN_MINUTES,
     refresh_model: str = DEFAULT_CLAUDE_OAUTH_REFRESH_MODEL,
+    user_agent: str = "TRMNLAgentUsageCollector/1",
 ) -> tuple[dict[str, Any] | None, str | None]:
     read_notes: list[str] = []
     oauth = read_claude_oauth_credentials(claude_root, read_notes)
@@ -727,7 +830,7 @@ def read_claude_oauth_usage(
                 "Authorization": f"Bearer {token}",
                 "Accept": "application/json",
                 "anthropic-beta": "oauth-2025-04-20",
-                "User-Agent": "TRMNLAgentUsageCollector/1",
+                "User-Agent": user_agent,
             },
         )
         try:
@@ -761,6 +864,9 @@ def read_claude_oauth_usage(
         notes.extend(refresh_notes)
         notes.extend(read_notes)
         limits = normalize_claude_oauth_usage(payload)
+        spend = payload.get("spend")
+        if isinstance(spend, dict) and spend.get("balance") is None:
+            limits["credits"].update(read_claude_prepaid_credit(dict(request.header_items()), notes))
         if not limits.get("five_hour") and not limits.get("weekly"):
             notes.append("Claude OAuth usage endpoint returned no recognized limits")
             return None, subscription_type
@@ -1360,6 +1466,8 @@ def read_codex_app_data(
     if not isinstance(rate_result, dict):
         notes.append("Codex app-server rate limits unavailable")
     rate_limits = normalize_codex_rate_limit_response(rate_result)
+    if rate_limits is not None:
+        rate_limits["resets"] = codex_reset_inventory((rate_result or {}).get("rateLimitResetCredits"))
     account_usage = normalize_codex_account_usage(usage_result)
     if rate_limits:
         notes.append("Codex rate limits from supported app-server")
@@ -1819,13 +1927,14 @@ def build_codex(
     if (rate_limits or {}).get("unclassified_windows"):
         source_notes.append("Unrecognized Codex rate-limit window ignored")
 
-    credit_source = (rate_limits or {}).get("credits") or jsonl_credits
+    credit_source = (app_rate_limits or {}).get("credits")
     balance = "n/a"
     has_credits = "n/a"
     if isinstance(credit_source, dict):
         raw_balance = credit_source.get("balance")
-        balance = str(raw_balance) if raw_balance is not None else "0"
+        balance = str(raw_balance) if raw_balance is not None else "n/a"
         has_credits = "yes" if credit_source.get("has_credits") else "no"
+    credit_display = account_credit(balance)
 
     latest_month = (monthly.get("monthly") or [])[-1] if monthly.get("monthly") else {}
     session_counts = sessions_summary(sessions, now, week_start)
@@ -1857,8 +1966,10 @@ def build_codex(
         "limits": display_limits,
         "credits": {
             "has_credits": has_credits,
-            "balance": balance,
+            "balance": credit_display.get("balance", "0" if balance == "0" else "n/a"),
+            **credit_display,
         },
+        "resets": reset_card((app_rate_limits or {}).get("resets"), tz),
         "usage": {
             "five_hour": unknown_cost(usage_card("Last 5h", five_hour_metrics, five_hour_events)),
             "today": usage_card("Today", today_metrics),
@@ -1892,6 +2003,7 @@ def build_claude(
     enable_oauth_usage: bool = False,
     enable_oauth_refresh: bool = False,
     oauth_refresh_stamp: Path | None = None,
+    user_agent: str = "TRMNLAgentUsageCollector/1",
 ) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -1988,6 +2100,7 @@ def build_claude(
             claude_bin=claude_bin,
             enable_refresh=enable_oauth_refresh,
             refresh_stamp=oauth_refresh_stamp,
+            user_agent=user_agent,
         )
         if enable_oauth_usage
         else (None, None)
@@ -2039,6 +2152,11 @@ def build_claude(
     scoped_item = effective_limits.get("scoped") if isinstance(effective_limits.get("scoped"), dict) else {}
     scoped_label = str(scoped_item.get("label") or "Scoped")
     source = "ccusage + Claude OAuth usage + ~/.claude stats" if oauth_limits else "ccusage + Claude statusLine + ~/.claude stats"
+    account_credits = dict((oauth_limits or {}).get("credits") or {})
+    if account_credits.get("cloud"):
+        cloud = account_credits["cloud"]
+        expiry = parse_dt(cloud.get("expires_at"))
+        account_credits["cloud"] = {**cloud, "expires": expiry.astimezone(tz).strftime("%m-%d %H:%M") if expiry else None}
 
     return {
         "ok": not errors,
@@ -2054,6 +2172,8 @@ def build_claude(
         "errors": errors[:3],
         "warnings": warnings[:3],
         "plan": subscription_type or "n/a",
+        "credits": account_credits,
+        "resets": reset_card((oauth_limits or {}).get("resets"), tz),
         "limits": {
             "primary": statusline_limit_card(
                 effective_limits,
@@ -2171,6 +2291,8 @@ def main() -> int:
 
     codex_bin = optional_executable(args.codex_bin, "codex")
     claude_bin = optional_executable(args.claude_bin, "claude")
+    codex_version = runtime_version(codex_bin)
+    claude_version = runtime_version(claude_bin)
     codex = build_feed_safely(
         "codex",
         args.codex_title or "Codex Usage",
@@ -2202,10 +2324,12 @@ def main() -> int:
             bool(args.enable_claude_oauth_usage),
             bool(args.enable_claude_oauth_refresh),
             output_dir / CLAUDE_OAUTH_REFRESH_STAMP_NAME,
+            user_agent=f"claude-cli/{claude_version} (external, cli) TRMNLAgentUsageCollector/1"
+            if claude_version != "n/a" else "TRMNLAgentUsageCollector/1",
         ),
     )
-    codex["runtime"] = f"Codex {runtime_version(codex_bin)}"
-    claude["runtime"] = f"Claude Code {runtime_version(claude_bin)}"
+    codex["runtime"] = f"Codex {codex_version}"
+    claude["runtime"] = f"Claude Code {claude_version}"
     index = {
         "ok": bool(codex.get("ok")) and bool(claude.get("ok")),
         "generated_at": datetime.now(tz).strftime("%Y-%m-%d %H:%M"),

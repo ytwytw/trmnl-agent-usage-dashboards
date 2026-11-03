@@ -175,11 +175,11 @@ Use templates/agent-usage-dashboard.liquid when your renderer and device preserv
   .agent-usage-screen .status-list {
     margin-top: 6px;
     display: grid;
-    gap: 5px;
+    gap: 3px;
   }
   .agent-usage-screen .status-row {
     display: grid;
-    grid-template-columns: 86px 1fr;
+    grid-template-columns: 96px 1fr;
     gap: 6px;
     min-width: 0;
     border-top: 2px solid #000;
@@ -194,12 +194,13 @@ Use templates/agent-usage-dashboard.liquid when your renderer and device preserv
     overflow: hidden;
   }
   .agent-usage-screen .status-val {
-    font-size: 17px;
+    font-size: 14px;
     line-height: 1;
     font-weight: 900;
     white-space: nowrap;
     overflow: hidden;
   }
+  .agent-usage-screen .account-val { font-size: 12px; }
   .agent-usage-screen .lower {
     display: grid;
     grid-template-columns: 460px 320px;
@@ -273,6 +274,10 @@ Use templates/agent-usage-dashboard.liquid when your renderer and device preserv
 </style>
 
 {% assign s = source_1 %}
+{% assign reset_count = s.resets.count | default: 0 | plus: 0 %}
+{% assign credit_balance = s.credits.balance | default: 0 | plus: 0 %}
+{% assign cloud_balance = s.credits.cloud.balance | default: 0 | plus: 0 %}
+
 {%- capture visible_limit_keys -%}
   {%- if s.limits.primary.used and s.limits.primary.used != 'n/a' -%},primary{%- endif -%}
   {%- unless s.limits.primary.window == '7d' and s.limits.primary.used and s.limits.primary.used != 'n/a' -%}
@@ -282,11 +287,6 @@ Use templates/agent-usage-dashboard.liquid when your renderer and device preserv
 {%- endcapture -%}
 {% assign visible_limit_keys = visible_limit_keys | remove_first: ',' | split: ',' %}
 
-{% comment %}Only surface purchased credits when there is a balance to report.{% endcomment %}
-{% assign credit_balance = s.credits.balance | plus: 0 %}
-{% assign show_credits = false %}
-{% if s.credits.has_credits == 'yes' %}{% assign show_credits = true %}{% endif %}
-{% if credit_balance > 0 %}{% assign show_credits = true %}{% endif %}
 <div class="agent-usage-screen">
   <header class="top">
     <div class="title">{{ s.title }}</div>
@@ -344,9 +344,12 @@ Use templates/agent-usage-dashboard.liquid when your renderer and device preserv
       </div>
 
       <div class="panel">
-        {% if s.kind == 'codex' %}
-          <div class="label">Codex limits</div>
-          <div class="status-list">
+        <div class="label">{% if s.kind == 'codex' %}Codex account{% else %}Claude account / block{% endif %}</div>
+        <div class="status-list">
+          {% if reset_count > 0 %}<div class="status-row"><div class="status-key">Resets</div><div class="status-val account-val">{{ reset_count }}{% if s.resets.expires %} &middot; exp {{ s.resets.expires }}{% endif %}</div></div>{% endif %}
+          {% if credit_balance > 0 %}<div class="status-row"><div class="status-key">Credits</div><div class="status-val account-val">{{ s.credits.display | default: s.credits.balance | escape }}</div></div>{% endif %}
+          {% if cloud_balance > 0 %}<div class="status-row"><div class="status-key">Cloud credits</div><div class="status-val account-val">{{ s.credits.cloud.display | escape }}{% if s.credits.cloud.expires %} &middot; exp {{ s.credits.cloud.expires }}{% endif %}</div></div>{% endif %}
+          {% if s.kind == 'codex' %}
             {% if s.limits.primary.used and s.limits.primary.used != 'n/a' %}
             <div class="status-row"><div class="status-key">{% if s.limits.primary.label == 'Weekly all' %}Week{% else %}{{ s.limits.primary.label }}{% endif %} reset</div><div class="status-val">{{ s.limits.primary.reset_full }}</div></div>
             {% endif %}
@@ -354,20 +357,14 @@ Use templates/agent-usage-dashboard.liquid when your renderer and device preserv
             <div class="status-row"><div class="status-key">{% if s.limits.weekly.label == 'Weekly all' %}Week{% else %}{{ s.limits.weekly.label }}{% endif %} reset</div><div class="status-val">{{ s.limits.weekly.reset_full }}</div></div>
             {% endif %}
             {% if s.limits.extra %}<div class="status-row"><div class="status-key">{% if s.limits.extra.label == 'Weekly all' %}Week{% else %}{{ s.limits.extra.label }}{% endif %} {{ s.limits.extra.window }}</div><div class="status-val">{{ s.limits.extra.used }} &middot; {{ s.limits.extra.reset }}</div></div>{% endif %}
-            {% if show_credits %}<div class="status-row"><div class="status-key">Credits</div><div class="status-val">{{ s.credits.balance }}</div></div>{% endif %}
             {% if s.account_usage.current_streak %}<div class="status-row"><div class="status-key">Streak</div><div class="status-val">{{ s.account_usage.current_streak }}d &middot; peak {{ s.account_usage.peak_day }}</div></div>{% endif %}
-          </div>
-        {% else %}
-          <div class="label">Claude limits / block</div>
-          <div class="status-list">
-            <div class="status-row"><div class="status-key">Scoped</div><div class="status-val">{% if s.limits.scoped and s.limits.scoped.used and s.limits.scoped.used != 'n/a' %}{{ s.limits.scoped.label }} {{ s.limits.scoped.used }}{% else %}n/a{% endif %}</div></div>
-            <div class="status-row"><div class="status-key">Scope reset</div><div class="status-val">{% if s.limits.scoped and s.limits.scoped.reset_full %}{{ s.limits.scoped.reset_full }}{% else %}n/a{% endif %}</div></div>
+          {% else %}
             <div class="status-row"><div class="status-key">Block left</div><div class="status-val">{{ s.block.remaining }} min</div></div>
             <div class="status-row"><div class="status-key">Burn</div><div class="status-val">{{ s.block.burn_tokens_min }}/m · {{ s.block.burn_cost_hr }}/h</div></div>
             <div class="status-row"><div class="status-key">Projected</div><div class="status-val">{{ s.block.projected_tokens }} / {{ s.block.projected_cost }}</div></div>
             <div class="status-row"><div class="status-key">Usage auth</div><div class="status-val">{{ s.auth.usage }}</div></div>
-          </div>
-        {% endif %}
+          {% endif %}
+        </div>
       </div>
     </section>
 

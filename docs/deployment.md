@@ -159,7 +159,7 @@ trmnl-agent-usage-push --dry-run
 trmnl-agent-usage-push
 ```
 
-The sender removes unused fields and rejects payloads larger than 2 KB by default. A dry run prints only the payload
+The sender removes unused fields and rejects payloads larger than 5 KB by default. A dry run prints only the payload
 size; it does not print the webhook URL.
 
 ### 3. Schedule collection and push
@@ -174,7 +174,7 @@ set -eu
 ```
 
 Store this wrapper and its environment outside the repository, make it executable, and run it every 15 minutes. Current
-TRMNL documentation describes a normal 2 KB webhook limit and 12 webhook requests per hour per Private Plugin. A
+TRMNL documentation describes a normal 5 KB webhook limit and 12 webhook requests per hour per Private Plugin. A
 15-minute cycle sends four requests per hour per plugin and stays below that limit. Account capabilities may change;
 check the current [Private Plugin guide](https://help.trmnl.com/en/articles/9510536-private-plugins) and
 [Webhook documentation](https://docs.trmnl.com/go/private-plugins/webhooks).

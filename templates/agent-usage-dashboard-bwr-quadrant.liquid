@@ -18,6 +18,10 @@
 </style>
 
 {% assign s = source_1 %}
+{% assign reset_count = s.resets.count | default: 0 | plus: 0 %}
+{% assign credit_balance = s.credits.balance | default: 0 | plus: 0 %}
+{% assign cloud_balance = s.credits.cloud.balance | default: 0 | plus: 0 %}
+
 {%- capture visible_limit_keys -%}
   {%- if s.limits.primary.used and s.limits.primary.used != 'n/a' -%},primary{%- endif -%}
   {%- unless s.limits.primary.window == '7d' and s.limits.primary.used and s.limits.primary.used != 'n/a' -%}
@@ -50,11 +54,20 @@
   <section class="metrics">
     <div class="card"><div class="label">{{ s.usage.five_hour.label }}</div><div class="value">{{ s.usage.five_hour.total }}</div><div class="sub">Token Cost* {{ s.usage.five_hour.cost }}</div></div>
     <div class="card"><div class="label">Local 7d</div><div class="value">{{ s.usage.week.total }}</div><div class="sub">Token Cost* {{ s.usage.week.cost }}</div></div>
-    <div class="card"><div class="label">{% if s.kind == 'codex' %}Streak{% else %}{{ s.limits.scoped.label }}{% endif %}</div><div class="value">{% if s.kind == 'codex' %}{{ s.account_usage.current_streak | default: 0 }}d{% else %}{{ s.limits.scoped.used }}{% endif %}</div><div class="sub">{% if s.kind == 'codex' %}peak {{ s.account_usage.peak_day | default: 'n/a' }}{% else %}{{ s.limits.scoped.reset }}{% endif %}</div></div>
+    <div class="card">
+      <div class="label">Account</div>
+      {% if reset_count > 0 %}<div class="sub">Resets {{ reset_count }}</div>{% endif %}
+      {% if credit_balance > 0 %}<div class="sub">Credits {{ s.credits.display | default: s.credits.balance | escape }}</div>{% endif %}
+      {% if cloud_balance > 0 %}<div class="sub">Cloud {{ s.credits.cloud.display | escape }}</div>{% endif %}
+      {% unless reset_count > 0 or credit_balance > 0 or cloud_balance > 0 %}
+        <div class="value">{% if s.kind == 'codex' %}{{ s.account_usage.current_streak | default: 0 }}d{% else %}{{ s.auth.usage | default: 'n/a' }}{% endif %}</div>
+        <div class="sub">{% if s.kind == 'codex' %}streak{% else %}usage auth{% endif %}</div>
+      {% endunless %}
+    </div>
   </section>
 
   <footer class="foot">
-    <div>{{ s.source }}</div>
+    <div>{{ s.runtime | default: s.source }}</div>
     <div>{{ s.sessions.today }}/{{ s.sessions.week }}/{{ s.sessions.all }}</div>
   </footer>
 </div>

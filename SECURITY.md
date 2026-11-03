@@ -13,7 +13,7 @@ data that could be exposed.
 This project is designed to publish aggregate dashboard metrics only. It should not publish prompts, raw JSONL lines,
 API keys, bearer tokens, private keys, local file paths, command history, or real TRMNL webhook URLs.
 
-The collector reaches no undocumented endpoints. The Codex path uses only the supported `codex app-server` JSON-RPC
+The Codex path uses only the supported `codex app-server` JSON-RPC
 methods, so no Codex auth token ever leaves the app-server process.
 
 The optional Claude OAuth paths are also disabled by default. When enabled, the collector reads Claude Code's stored
@@ -21,6 +21,11 @@ credential from the operating-system credential store, holds the access token in
 `api.anthropic.com`. It checks that a refresh token exists but never transmits or writes one. The separate refresh
 option additionally runs the official Claude Code CLI to make one minimal request, which consumes real Claude usage; it
 is opt-in and off unless both variables are set.
+
+The Claude account readers use first-party native endpoints whose shapes are not a public API contract. The optional
+prepaid balance lookup reads profile/organization metadata in memory only; it publishes no account/organization IDs,
+names, email, grant IDs, raw profile data, or payment metadata. All account-inventory requests are reads. The collector
+never redeems resets, purchases credits, or changes billing settings.
 
 ## Supported Versions
 

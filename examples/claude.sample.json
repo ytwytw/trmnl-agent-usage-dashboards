@@ -44,6 +44,11 @@
     "source": "Claude Code OAuth usage"
   },
   "auth": { "usage": "live" },
+  "resets": { "count": 1, "expires": "07-12 17:00" },
+  "credits": {
+    "balance": "0",
+    "cloud": { "balance": "25.50", "display": "$25.50", "expires": "07-14 09:00" }
+  },
   "activity_scope": "Local activity",
   "block": {
     "active": true,

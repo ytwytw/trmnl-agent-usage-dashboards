@@ -1636,8 +1636,7 @@ class CollectorHelperTests(unittest.TestCase):
         self.assertIsNone(usage["longest_streak"])
         self.assertEqual(usage["daily_rows"], [])
 
-    def test_read_codex_app_data_ignores_retired_reset_credits(self) -> None:
-        """OpenAI retired banked resets; the payload key must not revive the feature."""
+    def test_read_codex_app_data_preserves_supported_reset_count(self) -> None:
         rpc_response = {
             "rate-limits": {
                 "result": {
@@ -1661,9 +1660,9 @@ class CollectorHelperTests(unittest.TestCase):
         self.assertEqual(rate_limits["limit_id"], "codex")
         self.assertEqual(rate_limits["plan_type"], "pro")
         self.assertEqual(account_usage["lifetime"], "1")
-        self.assertNotIn("bank", " ".join(notes).lower())
+        self.assertEqual(rate_limits["resets"], {"count": 3, "expires_at": None})
 
-    def test_codex_feed_exposes_no_banked_reset_fields(self) -> None:
+    def test_codex_without_resets_or_credit_publishes_no_positive_inventory(self) -> None:
         def fake_ccusage(_bin, args, _tz_name, _offline, _errors):
             if args[1] == "daily":
                 return {"daily": [], "totals": {}}
@@ -1697,19 +1696,7 @@ class CollectorHelperTests(unittest.TestCase):
         self.assertTrue(feed["ok"])
         self.assertEqual(sorted(feed["credits"]), ["balance", "has_credits"])
         self.assertEqual(feed["credits"], {"has_credits": "no", "balance": "0"})
-        self.assertNotIn("bank", json.dumps(feed).lower())
-
-    def test_collector_retains_no_banked_reset_surface(self) -> None:
-        """The opt-in flag, the private wham endpoint, and the display helper are gone."""
-        for name in (
-            "read_codex_private_reset_credits",
-            "supported_reset_credit_expiries",
-            "reset_credit_display",
-        ):
-            self.assertFalse(hasattr(collector, name), f"{name} should have been removed")
-        source = Path(collector.__file__).read_text(encoding="utf-8").lower()
-        for token in ("banked", "wham", "reset-credit", "reset_credit"):
-            self.assertNotIn(token, source, f"collector still references {token!r}")
+        self.assertIsNone(feed["resets"])
 
     def test_claude_statusline_cache_drives_limit_cards(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -1902,7 +1889,7 @@ class WebhookPayloadTests(unittest.TestCase):
         self.assertEqual(compact["local_latest"], feed["local_latest"])
         self.assertEqual(compact["statusline"], {"captured_age":"live"})
 
-    def test_sample_payloads_fit_trmnl_webhook_free_tier_limit(self) -> None:
+    def test_sample_payloads_fit_trmnl_webhook_standard_limit(self) -> None:
         repo = Path(__file__).resolve().parents[1]
         for name in ("codex", "claude"):
             feed = json.loads((repo / "examples" / f"{name}.sample.json").read_text(encoding="utf-8"))
@@ -2042,13 +2029,12 @@ class WebhookPayloadTests(unittest.TestCase):
             self.assertIn("s.auth.usage", template, template_name)
             self.assertIn("Weekly all", template, template_name)
 
-    def test_full_templates_use_clear_session_footer_and_scoped_no_data_state(self) -> None:
+    def test_full_templates_keep_session_footer_and_scoped_quota_guard(self) -> None:
         repo = Path(__file__).resolve().parents[1]
         for template_name in ("agent-usage-dashboard.liquid", "agent-usage-dashboard-bwr.liquid"):
             template = (repo / "templates" / template_name).read_text(encoding="utf-8")
             self.assertIn("sess {{ s.sessions.today }}", template, template_name)
-            self.assertIn("s.limits.scoped and s.limits.scoped.used", template, template_name)
-            self.assertIn("s.limits.scoped and s.limits.scoped.reset_full", template, template_name)
+            self.assertIn("s.limits.scoped.used != 'n/a'", template, template_name)
             self.assertIn("s.statusline and s.statusline.captured_age", template, template_name)
 
     def test_full_template_header_reserves_space_for_single_line_metadata(self) -> None:

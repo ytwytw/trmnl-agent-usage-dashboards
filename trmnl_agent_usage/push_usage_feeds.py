@@ -15,7 +15,7 @@ from typing import Any
 from .collect_usage_feeds import DEFAULT_CACHE_DIR, safe_exception
 
 
-DEFAULT_MAX_BYTES = 2000
+DEFAULT_MAX_BYTES = 5000
 
 
 def pick(source: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
@@ -27,6 +27,9 @@ def compact_feed(feed: dict[str, Any]) -> dict[str, Any]:
         feed,
         ("ok", "kind", "title", "local_datetime", "refresh", "cost_basis", "source", "plan", "activity_scope", "runtime", "local_latest"),
     )
+    # The version footer supersedes source text; keep room for account inventory.
+    if compact.get("runtime"):
+        compact.pop("source", None)
     compact["errors"] = (feed.get("errors") or [])[:1]
     compact["notes"] = (feed.get("notes") or [])[:1]
 
@@ -61,9 +64,16 @@ def compact_feed(feed: dict[str, Any]) -> dict[str, Any]:
         if isinstance(item, dict)
     ]
 
+    credits = feed.get("credits") if isinstance(feed.get("credits"), dict) else {}
+    compact["credits"] = pick(credits, ("balance", "display"))
+    if isinstance(credits.get("cloud"), dict):
+        compact["credits"]["cloud"] = pick(credits["cloud"], ("balance", "display", "expires"))
+    resets = feed.get("resets")
+    count = resets.get("count") if isinstance(resets, dict) else None
+    if isinstance(count, int) and not isinstance(count, bool) and count > 0:
+        compact["resets"] = pick(resets, ("count", "expires"))
+
     if feed.get("kind") == "codex":
-        credits = feed.get("credits") if isinstance(feed.get("credits"), dict) else {}
-        compact["credits"] = pick(credits, ("has_credits", "balance"))
         account_usage = feed.get("account_usage") if isinstance(feed.get("account_usage"), dict) else {}
         compact["account_usage"] = pick(account_usage, ("lifetime", "peak_day", "current_streak", "longest_streak"))
     else:
